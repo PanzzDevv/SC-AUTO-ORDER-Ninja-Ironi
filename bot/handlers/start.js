@@ -31,7 +31,7 @@ Klaim voucher saat ini mulai random dari sistem TikTok.
 1. Akun terkena banned (sebelum digunakan)
 2. Akun sudah pernah digunakan orang lain
 3. Tidak ada voucher ongkir pada akun
-4. <b>TIDAK ADA GARANSI jika gagal klaim voucher (karena sistem TikTok random)</b>
+4. Gagal klaim voucher
 
 📨 <b>Syarat Klaim:</b> Wajib mengirimkan file backup akun.
 ⚖️ <i>Membeli berarti memahami dan menyetujui ketentuan di atas.</i>
@@ -64,7 +64,7 @@ async function handleStart(bot, msg) {
   const { id: chatId, username, first_name } = msg.from;
   const session = getSession(chatId);
 
-  try { await getUserOrCreate(chatId, username, first_name); } catch {}
+  try { await getUserOrCreate(chatId, username, first_name); } catch { }
 
   const name = first_name || username || 'Kawan';
 
@@ -117,7 +117,7 @@ async function handleStart(bot, msg) {
     }
   }
 
-  const caption  = buildCaption(name);
+  const caption = buildCaption(name);
   const inlineKeyboard = buildMainKeyboard(chatId);
   const bannerUrl = process.env.BANNER_URL || '';
 
@@ -144,13 +144,13 @@ async function handleStart(bot, msg) {
       }
 
       session.mainMessageId = photoMsg.message_id;
-      session.mainIsPhoto   = true;
+      session.mainIsPhoto = true;
 
       // Simpan ke Firestore untuk pemulihan nanti jika bot restart
       await db.collection('users').doc(String(chatId)).update({
         mainMessageId: photoMsg.message_id,
         mainIsPhoto: true
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       const [msg1, textMsg] = await Promise.all([
         p1,
@@ -161,12 +161,12 @@ async function handleStart(bot, msg) {
       ]);
 
       session.mainMessageId = textMsg.message_id;
-      session.mainIsPhoto   = false;
+      session.mainIsPhoto = false;
 
       await db.collection('users').doc(String(chatId)).update({
         mainMessageId: textMsg.message_id,
         mainIsPhoto: false
-      }).catch(() => {});
+      }).catch(() => { });
     }
   } catch (e) {
     console.error('Send message/photo error:', e.message);
@@ -176,26 +176,26 @@ async function handleStart(bot, msg) {
       reply_markup: inlineKeyboard,
     });
     session.mainMessageId = textMsg.message_id;
-    session.mainIsPhoto   = false;
+    session.mainIsPhoto = false;
 
     await db.collection('users').doc(String(chatId)).update({
       mainMessageId: textMsg.message_id,
       mainIsPhoto: false
-    }).catch(() => {});
+    }).catch(() => { });
   }
 }
 
 async function handleBackToMenu(bot, chatId, messageId, firstName) {
   const session = getSession(chatId);
-  const caption  = buildCaption(firstName || 'Kawan');
+  const caption = buildCaption(firstName || 'Kawan');
   const keyboard = buildMainKeyboard(chatId);
   const bannerUrl = process.env.BANNER_URL || '';
 
   // Jika main menu sebelumnya diturunkan ke teks (isPhoto === false) atau messageId hilang,
   // hapus pesan lama dan kirim ulang menu utama dengan foto banner agar branding tetap konsisten
   if (session.mainIsPhoto === false || !messageId) {
-    if (messageId) bot.deleteMessage(chatId, messageId).catch(() => {});
-    
+    if (messageId) bot.deleteMessage(chatId, messageId).catch(() => { });
+
     const photoSource = cachedBannerFileId ? cachedBannerFileId : bannerUrl;
     if (photoSource) {
       try {
@@ -208,14 +208,14 @@ async function handleBackToMenu(bot, chatId, messageId, firstName) {
         if (!cachedBannerFileId && photoMsg.photo && photoMsg.photo.length > 0) {
           cachedBannerFileId = photoMsg.photo[photoMsg.photo.length - 1].file_id;
         }
-        
+
         session.mainMessageId = photoMsg.message_id;
-        session.mainIsPhoto   = true;
+        session.mainIsPhoto = true;
 
         await db.collection('users').doc(String(chatId)).update({
           mainMessageId: photoMsg.message_id,
           mainIsPhoto: true
-        }).catch(() => {});
+        }).catch(() => { });
         return;
       } catch (e) {
         console.error('Failed to restore main menu photo banner:', e.message);
@@ -229,11 +229,11 @@ async function handleBackToMenu(bot, chatId, messageId, firstName) {
         reply_markup: keyboard,
       });
       session.mainMessageId = textMsg.message_id;
-      session.mainIsPhoto   = false;
+      session.mainIsPhoto = false;
       await db.collection('users').doc(String(chatId)).update({
         mainMessageId: textMsg.message_id,
         mainIsPhoto: false
-      }).catch(() => {});
+      }).catch(() => { });
       return;
     } catch (e) {
       console.error('Failed to send fallback main menu text:', e.message);
