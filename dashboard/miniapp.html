@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PanzzStore Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="stylesheet" href="/dashboard/css/miniapp.css" />
+</head>
+<body>
+  <!-- LOADING SCREEN -->
+  <div id="loadingScreen">
+    <div class="loader-logo">🏪</div>
+    <div class="loader-name">PanzzStore</div>
+    <div class="loader-spin"></div>
+  </div>
+
+  <!-- UNAUTHORIZED -->
+  <div id="unauthorizedScreen" style="display:none;">
+    <div class="unauth-icon">🚫</div>
+    <h2>Akses Ditolak</h2>
+    <p>Kamu tidak memiliki izin untuk mengakses panel admin ini.</p>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="mainApp" style="display:none;">
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" id="nav-home" onclick="switchTab('home')">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-btn" id="nav-orders" onclick="switchTab('orders')">
+        <span class="nav-icon">🛒</span>
+        <span class="nav-label">Order</span>
+        <span class="nav-badge" id="pendingBadge" style="display:none">0</span>
+      </button>
+      <button class="nav-btn" id="nav-stock" onclick="switchTab('stock')">
+        <span class="nav-icon">📦</span>
+        <span class="nav-label">Stok</span>
+      </button>
+      <button class="nav-btn" id="nav-upload" onclick="switchTab('upload')">
+        <span class="nav-icon">⬆️</span>
+        <span class="nav-label">Upload</span>
+      </button>
+      <button class="nav-btn" id="nav-users" onclick="switchTab('users')">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">User</span>
+      </button>
+      <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Atur Produk</span>
+      </button>
+    </nav>
+
+    <!-- CONTENT AREA -->
+    <main class="content-area">
+
+      <!-- ── HOME TAB ──────────────────────────────────────────────── -->
+      <div class="tab-content active" id="tab-home">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-sub" id="greetText">Selamat datang!</p>
+          </div>
+          <button class="refresh-btn" onclick="loadHome()">🔄</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-mini purple">
+            <div class="stat-mini-icon">📦</div>
+            <div class="stat-mini-val" id="m-today-orders">—</div>
+            <div class="stat-mini-lbl">Order Hari Ini</div>
+          </div>
+          <div class="stat-mini pink">
+            <div class="stat-mini-icon">💵</div>
+            <div class="stat-mini-val" id="m-today-rev">—</div>
+            <div class="stat-mini-lbl">Revenue Hari Ini</div>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-mini green">
+            <div class="stat-mini-icon">✅</div>
+            <div class="stat-mini-val" id="m-total-orders">—</div>
+            <div class="stat-mini-lbl">Total Selesai</div>
+          </div>
+          <div class="stat-mini blue">
+            <div class="stat-mini-icon">🏦</div>
+            <div class="stat-mini-val" id="m-total-rev">—</div>
+            <div class="stat-mini-lbl">Total Revenue</div>
+          </div>
+        </div>
+
+        <!-- Stock Overview -->
+        <h2 class="section-title">📊 Stok Saat Ini</h2>
+        <div class="stock-list" id="homeStockList">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+
+        <!-- Recent Orders -->
+        <h2 class="section-title" style="margin-top:1.25rem;">🛒 Order Terbaru</h2>
+        <div class="order-list" id="homeOrderList">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+
+        <!-- Broadcast Section -->
+        <h2 class="section-title" style="margin-top:1.25rem;">📢 Broadcast Pengumuman</h2>
+        <div class="form-card" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0; line-height: 1.4;">
+            Kirim pengumuman / pesan promosi ke seluruh pengguna terdaftar di bot Telegram Anda. Mendukung tag HTML standar (seperti <code>&lt;b&gt;tebal&lt;/b&gt;</code>, <code>&lt;i&gt;miring&lt;/i&gt;</code>, <code>&lt;code&gt;kode&lt;/code&gt;</code>).
+          </p>
+          
+          <!-- Pesan Utama -->
+          <div class="form-group" style="margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-main);">Pesan Utama</label>
+            <textarea id="broadcastMsg" placeholder="Tulis pesan broadcast di sini..." rows="4" style="width: 100%; padding: 0.75rem; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); color: #fff; font-family: inherit; font-size: 0.9rem; resize: vertical; box-sizing: border-box; outline: none; transition: border-color 0.25s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+          </div>
+
+          <!-- URL Gambar -->
+          <div class="form-group" style="margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-main);">URL Gambar / Foto (Opsional)</label>
+            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+              <input type="text" id="broadcastImgUrl" placeholder="https://example.com/banner.jpg" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.9rem; outline:none; flex:1;" />
+            </div>
+          </div>
+
+          <!-- Tombol Aksi Kustom -->
+          <div class="form-group" style="margin: 0; display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-main);">Teks Tombol (Opsional)</label>
+            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+              <input type="text" id="broadcastBtnText" placeholder="Hubungi Admin / Beli" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.9rem; outline:none; flex:1;" />
+            </div>
+          </div>
+          <div class="form-group" style="margin: 0; display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-main);">Link URL Tombol (Opsional)</label>
+            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+              <input type="text" id="broadcastBtnUrl" placeholder="https://t.me/username" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.9rem; outline:none; flex:1;" />
+            </div>
+          </div>
+
+          <!-- Buttons Group -->
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%; margin-top: 0.5rem;">
+            <button class="btn-primary" onclick="sendBroadcast()" id="btnSendBroadcast" style="margin: 0; width: 100%;">🚀 Kirim Broadcast</button>
+            <div style="display: flex; gap: 0.5rem; width: 100%;">
+              <button class="btn-secondary" onclick="previewBroadcast()" id="btnPreviewBroadcast" style="margin: 0; flex: 1; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid var(--border); height: 2.75rem; border-radius: 12px; font-weight: 600; cursor: pointer;">👁️ Preview</button>
+              <button class="btn-secondary" onclick="resetBroadcastForm()" style="margin: 0; flex: 1; background: rgba(255,82,82,0.12); color: #ff5252; border: 1px solid rgba(255,82,82,0.25); height: 2.75rem; border-radius: 12px; font-weight: 600; outline: none; cursor: pointer; transition: all 0.25s;" onmouseover="this.style.background='rgba(255,82,82,0.22)'" onmouseout="this.style.background='rgba(255,82,82,0.12)'">✕ Batal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ORDERS TAB ─────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-orders">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Semua Order</h1>
+            <p class="page-sub">Kelola order masuk</p>
+          </div>
+          <button class="refresh-btn" onclick="loadOrders()">🔄</button>
+        </div>
+
+        <!-- Filter chips -->
+        <div class="filter-chips">
+          <button class="chip active" onclick="filterOrders('all', this)">Semua</button>
+          <button class="chip" onclick="filterOrders('pending', this)">⏳ Pending</button>
+          <button class="chip" onclick="filterOrders('done', this)">✅ Selesai</button>
+        </div>
+
+        <div class="order-list" id="allOrderList">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+      </div>
+
+      <!-- ── STOCK TAB ──────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-stock">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Stok Akun</h1>
+            <p class="page-sub">Pantau ketersediaan</p>
+          </div>
+          <button class="refresh-btn" onclick="loadStock()">🔄</button>
+        </div>
+        <div class="stock-list" id="stockDetailList">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+      </div>
+
+      <!-- ── UPLOAD TAB ─────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-upload">
+        <div class="page-header" style="display:flex; flex-direction:column; align-items:flex-start; gap:0.25rem; margin-bottom:1.25rem;">
+          <h1 class="page-title" style="margin:0;">Upload Akun</h1>
+          <p id="syncStatus" style="font-size:0.75rem; color:#bbb; margin:0; display:none; background:rgba(255,255,255,0.05); padding:0.2rem 0.6rem; border-radius:6px; border:1px solid rgba(255,255,255,0.08);"></p>
+        </div>
+
+        <div class="form-card">
+          <div class="form-group">
+            <label>Tipe Akun</label>
+            <div class="segmented">
+              <button class="seg-btn active" id="seg-muda" onclick="selectType('muda', this)">🧒 Fresh Usia 0 Day</button>
+              <button class="seg-btn" id="seg-tua" onclick="selectType('tua', this)">👴 Fresh Usia 2-8 Day</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Garansi</label>
+            <div class="segmented">
+              <button class="seg-btn active" id="seg-yes" onclick="selectGaransi('true', this)">✅ Garansi</button>
+              <button class="seg-btn" id="seg-no" onclick="selectGaransi('false', this)">❌ No Garansi</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="upload-zone" id="dropZone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <div class="upload-zone-content">
+            <div class="upload-zone-icon">📥</div>
+            <h3 class="upload-zone-title">Seret & Lepas Akun Di Sini</h3>
+            <p class="upload-zone-sub">Mendukung file ZIP tunggal, Master ZIP, atau Folder Akun</p>
+            <div class="upload-actions">
+              <button class="btn-upload-choice" onclick="document.getElementById('fileInput').click()">
+                <span>📦 Pilih ZIP</span>
+              </button>
+              <button class="btn-upload-choice folder" onclick="document.getElementById('folderInput').click()">
+                <span>📁 Pilih Folder</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background:rgba(255,255,255,0.05); border-left:3px solid var(--primary); padding:0.75rem; border-radius:4px; margin-bottom:1.5rem; font-size:0.75rem; color:#bbb; line-height:1.5;">
+          <strong style="color:var(--primary-light);">💡 Info Upload:</strong><br/>
+          • <b>Upload ZIP (Support PC & HP):</b> Pilih file ZIP satuan atau 1 Master ZIP yang berisi banyak folder akun (otomatis dipecah).<br/>
+          • <b>Upload Folder (Hanya PC):</b> Pilih banyak folder sekaligus, sistem akan otomatis membungkus tiap folder jadi file ZIP terpisah.
+        </div>
+        
+        <input type="file" id="fileInput" multiple accept=".zip" style="display:none" onchange="handleFiles(this.files)" />
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none" onchange="handleFolder(this.files)" />
+
+        <div id="filePreview" style="display:none;">
+          <div class="file-preview-header">
+            <span id="fileCount">0 file dipilih</span>
+            <button class="link-btn" onclick="clearFiles()">Hapus Semua</button>
+          </div>
+          <div id="fileList" class="file-list"></div>
+          <button class="btn-primary full" id="uploadBtn" onclick="doUpload()">⬆️ Upload Sekarang</button>
+        </div>
+
+        <div id="uploadProgressWrap" style="display:none;margin-top:1rem;">
+          <p class="prog-label">Mengupload...</p>
+          <div class="prog-track"><div class="prog-bar" id="progBar"></div></div>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS TAB ───────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-settings">
+        <div class="page-header">
+          <h1 class="page-title">Atur Produk</h1>
+        </div>
+
+        <div class="form-card" style="margin-bottom: 1.25rem;">
+          <h3 style="margin: 0 0 1rem 0; font-size: 0.95rem; font-weight: 700; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.5px;">🏷️ Edit Nama Kategori Produk</h3>
+          <div class="price-row" style="margin-bottom: 1rem; display:flex; flex-direction:column; gap:0.4rem;">
+            <div class="price-label" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Nama Kategori 1 (Muda)</div>
+            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+              <input type="text" id="p-muda-name" placeholder="Fresh Usia 0 Day" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.95rem; outline:none; flex:1;" />
+            </div>
+          </div>
+          <div class="price-row" style="display:flex; flex-direction:column; gap:0.4rem;">
+            <div class="price-label" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Nama Kategori 2 (Tua)</div>
+            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+              <input type="text" id="p-tua-name" placeholder="Fresh Usia 2-8 Day" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.95rem; outline:none; flex:1;" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-card">
+          <h3 style="margin: 0 0 1rem 0; font-size: 0.95rem; font-weight: 700; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.5px;">💰 Atur Harga</h3>
+          <div class="price-row">
+            <div class="price-label">🧒 <span id="lbl-muda-g">Fresh Usia 0 Day</span> + ✅ Garansi</div>
+            <div class="price-input-row">
+              <span class="rp">Rp</span>
+              <input type="number" id="p-muda-g" placeholder="50000" />
+            </div>
+          </div>
+          <div class="price-row">
+            <div class="price-label">🧒 <span id="lbl-muda-ng">Fresh Usia 0 Day</span> + ❌ No Garansi</div>
+            <div class="price-input-row">
+              <span class="rp">Rp</span>
+              <input type="number" id="p-muda-ng" placeholder="30000" />
+            </div>
+          </div>
+          <div class="price-row">
+            <div class="price-label">👴 <span id="lbl-tua-g">Fresh Usia 2-8 Day</span> + ✅ Garansi</div>
+            <div class="price-input-row">
+              <span class="rp">Rp</span>
+              <input type="number" id="p-tua-g" placeholder="80000" />
+            </div>
+          </div>
+          <div class="price-row">
+            <div class="price-label">👴 <span id="lbl-tua-ng">Fresh Usia 2-8 Day</span> + ❌ No Garansi</div>
+            <div class="price-input-row">
+              <span class="rp">Rp</span>
+              <input type="number" id="p-tua-ng" placeholder="60000" />
+            </div>
+          </div>
+          <button class="btn-primary full" style="margin-top:.5rem;" onclick="savePrices()">💾 Simpan Pengaturan</button>
+        </div>
+      </div>
+
+      <!-- ── USERS TAB ─────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-users">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Kelola User</h1>
+            <p class="page-sub">Atur saldo dan pantau user</p>
+          </div>
+          <button class="refresh-btn" onclick="loadUsers()">🔄</button>
+        </div>
+
+        <!-- Search Bar -->
+        <div style="margin-bottom:1rem; position:relative;">
+          <input type="text" id="userSearchInput" placeholder="🔍 Cari Username atau Telegram ID..." oninput="searchUsers()" style="
+            width:100%;
+            background:rgba(255,255,255,0.05);
+            border:1px solid var(--border);
+            padding:0.75rem 1rem;
+            border-radius:12px;
+            color:#fff;
+            font-size:0.9rem;
+            outline:none;
+            transition:border-color 0.2s;
+            box-sizing:border-box;
+          " />
+        </div>
+
+        <div class="user-list" id="usersList">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- LOADING OVERLAY -->
+  <div id="loadingOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center; padding:2rem;">
+    <div style="
+      background: linear-gradient(145deg, #1a1228, #120e1e);
+      text-align:center;
+      padding: 2.5rem 2rem;
+      border-radius: 24px;
+      max-width: 320px;
+      width: 100%;
+      border: 1px solid rgba(192,132,252,0.35);
+      box-shadow:
+        0 0 0 1px rgba(192,132,252,0.1),
+        0 0 40px rgba(192,132,252,0.2),
+        0 25px 60px rgba(0,0,0,0.7);
+      animation: fadeScale 0.3s cubic-bezier(0.16,1,0.3,1);
+      position: relative;
+      overflow: hidden;
+    ">
+      <!-- Glow accent top -->
+      <div style="position:absolute; top:-40px; left:50%; transform:translateX(-50%); width:140px; height:80px; background:radial-gradient(ellipse, rgba(192,132,252,0.25), transparent 70%); pointer-events:none;"></div>
+
+      <!-- Spinner -->
+      <div style="
+        margin: 0 auto 1.5rem;
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        border: 3px solid rgba(192,132,252,0.15);
+        border-top-color: #c084fc;
+        border-right-color: #e879f9;
+        animation: spin 0.9s linear infinite;
+        box-shadow: 0 0 16px rgba(192,132,252,0.35);
+      "></div>
+
+      <!-- Title -->
+      <h3 id="loadingTitle" style="
+        margin-bottom: 0.4rem;
+        font-size: 1.15rem;
+        color: #f8fafc;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      ">Memproses...</h3>
+
+      <!-- Desc -->
+      <p id="loadingDesc" style="
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-bottom: 1.75rem;
+        line-height: 1.5;
+      ">Mohon tunggu sebentar</p>
+
+      <!-- Progress track -->
+      <div style="background: rgba(255,255,255,0.06); border-radius: 99px; height: 7px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
+        <div id="loadingProgBar" style="
+          background: linear-gradient(90deg, #c084fc, #e879f9);
+          width: 0%;
+          height: 100%;
+          border-radius: 99px;
+          transition: width 0.35s ease;
+          box-shadow: 0 0 10px rgba(192,132,252,0.6);
+        "></div>
+      </div>
+
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+      </style>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toastEl" class="toast-mini"></div>
+
+  <!-- ORDER DETAIL MODAL -->
+  <div id="orderModal" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Detail Order</h3>
+        <button onclick="closeModal()" class="modal-close">✕</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- STOCK MODAL -->
+  <div id="stockModal" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="stockModalTitle">Detail Stok</h3>
+        <button class="modal-close" onclick="closeStockModal()">✕</button>
+      </div>
+      <div style="padding: 1.5rem; display:flex; flex-direction:column; gap:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h4 style="color:var(--text-main);">Daftar Akun (<span id="stockModalCount">0</span>)</h4>
+          <button class="btn-danger" id="btnDeleteStock" style="padding:0.4rem 1rem; font-size:0.8rem; border-radius:8px; display:none;">🗑️ Hapus Stok Ini</button>
+        </div>
+        <div id="stockFileList" style="display:flex; flex-direction:column; gap:0.5rem; max-height:40vh; overflow-y:auto; padding-right:0.5rem;">
+          <!-- List of files -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT SALDO MODAL -->
+  <div id="saldoModal" class="modal-overlay" style="display:none;" onclick="closeSaldoModal(event)">
+    <div class="modal-card" style="max-width:340px; width:100%; border: 1px solid rgba(192,132,252,0.35); background: linear-gradient(145deg, #1a1228, #120e1e);">
+      <div class="modal-header">
+        <h3>✏️ Edit Saldo User</h3>
+        <button class="modal-close" onclick="closeSaldoModal()">✕</button>
+      </div>
+      <div style="padding: 1.5rem; display:flex; flex-direction:column; gap:1rem;">
+        <p style="font-size:0.85rem; color:var(--text-muted); margin:0;" id="modalUserLabel">@username (ID: 123456)</p>
+        
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.75rem; color:#bbb; display:block; margin-bottom:0.5rem; text-align:left;">Saldo Baru (Rupiah)</label>
+          <div class="price-input-row" style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+            <span class="rp" style="color:var(--primary-light); font-weight:700; margin-right:0.25rem;">Rp</span>
+            <input type="number" id="modalSaldoInput" placeholder="0" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:1rem; outline:none; flex:1;" />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button class="btn-primary full" style="flex:1;" onclick="saveUserSaldo()">💾 Simpan</button>
+          <button class="btn-secondary full" style="flex:1;" onclick="closeSaldoModal()">✕ Batal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/dashboard/js/miniapp.js"></script>
+</body>
+</html>
