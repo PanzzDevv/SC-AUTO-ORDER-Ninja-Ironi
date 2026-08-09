@@ -4,6 +4,7 @@ const {
   getUser, updateUserSaldo,
 } = require('../../server/firebase');
 const { createZipFromAccounts, cleanupZip } = require('../../server/zipHelper');
+const { getBaseUrl } = require('../../server/urlHelper');
 
 const storeName = process.env.STORE_NAME || 'PanzzStore';
 const { getSession, clearSession } = require('../sessions');
@@ -462,10 +463,7 @@ async function deliverOrder(bot, orderId) {
     cleanupZip(tempZipPath);
     
     // Buat link download
-    let baseUrl = process.env.BASE_URL || '';
-    if (baseUrl && !baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-      baseUrl = `https://${baseUrl}`;
-    }
+    const baseUrl = getBaseUrl();
     const downloadUrl = `${baseUrl}/downloads/${finalZipName}`;
     const adminUsername = process.env.ADMIN_USERNAME || 'panzzstore_admin';
     
