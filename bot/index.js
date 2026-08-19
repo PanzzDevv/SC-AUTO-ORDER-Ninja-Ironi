@@ -555,12 +555,11 @@ bot.on('callback_query', async (query) => {
         await handleBeli(bot, chatId, messageId);
         break;
 
-      case data === 'type_muda':
-        await handleSelectType(bot, chatId, messageId, 'muda');
+      case data.startsWith('type_'): {
+        const typeId = data.replace('type_', '');
+        await handleSelectType(bot, chatId, messageId, typeId);
         break;
-      case data === 'type_tua':
-        await handleSelectType(bot, chatId, messageId, 'tua');
-        break;
+      }
 
       case data === 'garansi_yes':
         await handleSelectGaransi(bot, chatId, messageId, true);
@@ -669,7 +668,7 @@ bot.on('callback_query', async (query) => {
           let stockText = '';
           stock.forEach(s => {
             const garansiLabel = s.garansi ? 'Garansi' : 'No Garansi';
-            const typeLabel = s.type === 'muda' ? 'Fresh Usia 0 Day' : 'Fresh Usia 2-8 Day';
+            const typeLabel = `${s.emoji || '📦'} ${s.categoryName || s.type}`;
             stockText += `• ${typeLabel} (${garansiLabel}): <b>${s.count} akun</b>\n`;
           });
 
@@ -785,7 +784,7 @@ bot.on('callback_query', async (query) => {
 
       case data.startsWith('admin_view_order_'): {
         const targetOrderId = data.split('_')[3];
-        const { getOrder } = require('../server/firebase');
+        const { getOrder, getCategoryById } = require('../server/firebase');
         const { formatRupiah } = require('./utils');
         try {
           const order = await getOrder(targetOrderId);
@@ -793,7 +792,8 @@ bot.on('callback_query', async (query) => {
             await bot.editMessageText('❌ Pesanan tidak ditemukan.', { chat_id: chatId, message_id: messageId });
             break;
           }
-          const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
+          const cat = await getCategoryById(order.type);
+          const typeName = `${cat.emoji ? cat.emoji + ' ' : ''}${cat.name}`;
           const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
           const paymentMethod = order.paymentUrl === 'Paid with Balance' ? 'Potong Saldo' : 'PanzzPay QRIS';
           const dateStr = order.createdAt ? (order.createdAt.toDate ? order.createdAt.toDate().toLocaleString('id-ID') : new Date(order.createdAt).toLocaleString('id-ID')) : '—';

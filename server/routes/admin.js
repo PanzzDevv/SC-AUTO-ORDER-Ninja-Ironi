@@ -8,7 +8,8 @@ const { v4: uuidv4 } = require('uuid');
 const {
   getAllOrders, getOrderStats, getAllStock, deleteStockCategory,
   updateOrderStatus, addAccount, getPrices, updatePrices, db,
-  getAllUsers, setUserSaldo
+  getAllUsers, setUserSaldo,
+  getCategories, saveCategories, getCategoryById
 } = require('../firebase');
 const { uploadFileToTelegram } = require('../telegramStorage');
 
@@ -290,6 +291,47 @@ async function triggerBackgroundUpload() {
 
 // Auto-run trigger on startup to resume any pending uploads
 triggerBackgroundUpload().catch(console.error);
+
+// ─── CATEGORIES ───────────────────────────────────────────────────────────────
+router.get('/categories', adminAuth, async (req, res) => {
+  try {
+    const categories = await getCategories();
+    res.json({ success: true, categories });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/categories', adminAuth, async (req, res) => {
+  try {
+    const { categories } = req.body;
+    if (!categories || !Array.isArray(categories)) {
+      return res.status(400).json({ error: 'Array categories dibutuhkan' });
+    }
+    const saved = await saveCategories(categories);
+    res.json({ success: true, categories: saved });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/categories/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const categories = await getCategories();
+    if (categories.length <= 1) {
+      return res.status(400).json({ error: 'Minimal harus ada 1 kategori yang tersisa' });
+    }
+    const filtered = categories.filter(c => c.id !== id);
+    if (filtered.length === categories.length) {
+      return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+    }
+    const saved = await saveCategories(filtered);
+    res.json({ success: true, categories: saved });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ─── PRICES ───────────────────────────────────────────────────────────────────
 router.get('/prices', adminAuth, async (req, res) => {

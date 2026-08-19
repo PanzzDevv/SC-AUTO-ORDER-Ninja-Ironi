@@ -48,26 +48,51 @@ function showUnauthorized() {
   document.getElementById('unauthorizedScreen').style.display = 'flex';
 }
 
+window._categories = [];
 window._prices = {};
 
-function updateDynamicUIElements() {
-  const mudaName = window._prices?.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = window._prices?.tua_name || 'Fresh Usia 2-8 Day';
+function getCategory(typeId) {
+  if (window._categories && window._categories.length) {
+    const found = window._categories.find(c => c.id === typeId);
+    if (found) return found;
+  }
+  if (typeId === 'muda') {
+    return { id: 'muda', name: window._prices?.muda_name || 'Fresh Usia 0 Day', emoji: '🧒' };
+  }
+  if (typeId === 'tua') {
+    return { id: 'tua', name: window._prices?.tua_name || 'Fresh Usia 2-8 Day', emoji: '👴' };
+  }
+  return { id: typeId, name: typeId || 'Akun TikTok', emoji: '📦' };
+}
 
-  const segMuda = document.getElementById('seg-muda');
-  const segTua = document.getElementById('seg-tua');
-  if (segMuda) segMuda.innerHTML = `🧒 ${mudaName}`;
-  if (segTua) segTua.innerHTML = `👴 ${tuaName}`;
+function renderUploadCategorySelector() {
+  const container = document.getElementById('uploadCategorySegmented');
+  if (!container) return;
+  if (!window._categories || !window._categories.length) return;
 
-  const lblMudaG = document.getElementById('lbl-muda-g');
-  const lblMudaNg = document.getElementById('lbl-muda-ng');
-  const lblTuaG = document.getElementById('lbl-tua-g');
-  const lblTuaNg = document.getElementById('lbl-tua-ng');
+  const isValidSelected = window._categories.some(c => c.id === selectedType);
+  if (!isValidSelected) {
+    selectedType = window._categories[0].id;
+  }
 
-  if (lblMudaG) lblMudaG.textContent = mudaName;
-  if (lblMudaNg) lblMudaNg.textContent = mudaName;
-  if (lblTuaG) lblTuaG.textContent = tuaName;
-  if (lblTuaNg) lblTuaNg.textContent = tuaName;
+  container.innerHTML = window._categories.map(c => `
+    <button class="seg-btn ${c.id === selectedType ? 'active' : ''}" id="seg-cat-${c.id}" onclick="selectType('${c.id}', this)">
+      ${c.emoji || '📦'} ${c.name}
+    </button>
+  `).join('');
+}
+
+async function fetchCategoriesGlobally() {
+  try {
+    const res = await apiFetch('/api/admin/categories');
+    if (res.ok) {
+      const data = await res.json();
+      window._categories = data.categories || [];
+      renderUploadCategorySelector();
+    }
+  } catch (e) {
+    console.error('Gagal memuat kategori', e);
+  }
 }
 
 async function fetchPricesGlobally() {
@@ -90,9 +115,12 @@ async function initApp() {
   const name = user?.first_name || 'Admin';
   document.getElementById('greetText').textContent = `Halo, ${name}! 👋`;
 
-  await fetchPricesGlobally();
-  updateDynamicUIElements();
+  await Promise.all([
+    fetchCategoriesGlobally(),
+    fetchPricesGlobally(),
+  ]);
 
+  renderUploadCategorySelector();
   loadHome();
 }
 
@@ -131,9 +159,12 @@ function switchTab(tab) {
   if (tab === 'home')     loadHome();
   if (tab === 'orders')   loadOrders();
   if (tab === 'stock')    loadStock();
-  if (tab === 'settings') loadPrices();
+  if (tab === 'settings') loadCategorySettings();
   if (tab === 'users')    loadUsers();
-  if (tab === 'upload')   startSyncStatusPolling();
+  if (tab === 'upload')   {
+    renderUploadCategorySelector();
+    startSyncStatusPolling();
+  }
 }
 
 // ─── FORMAT HELPERS ───────────────────────────────────────────────────────────
@@ -221,7 +252,8 @@ async function loadHome() {
 let currentStockData = [];
 
 function stockItemHTML(s, index) {
-  const emoji = s.type === 'muda' ? '🧒' : '👴';
+  const cat = getCategory(s.type);
+  const emoji = s.emoji || cat.emoji || (s.type === 'muda' ? '🧒' : s.type === 'tua' ? '👴' : '📦');
   const color = s.count > 5 ? '#A855F7' : s.count > 0 ? '#f59e0b' : '#ef4444';
   
   return `<div class="stock-item" onclick="showStockModal(${index})" style="cursor:pointer; position:relative;">
@@ -239,9 +271,11 @@ function stockItemHTML(s, index) {
 
 function gotoRestock(type, garansi) {
   switchTab('upload');
-  const typeBtn = document.getElementById(type === 'muda' ? 'seg-muda' : 'seg-tua');
+  selectedType = type;
+  renderUploadCategorySelector();
+  const btn = document.getElementById(`seg-cat-${type}`);
+  if (btn) selectType(type, btn);
   const garBtn = document.getElementById(garansi ? 'seg-yes' : 'seg-no');
-  if (typeBtn) selectType(type, typeBtn);
   if (garBtn) selectGaransi(garansi ? 'true' : 'false', garBtn);
 }
 
@@ -314,9 +348,8 @@ async function loadStock() {
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
 function orderItemHTML(order) {
-  const mudaName = window._prices?.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = window._prices?.tua_name || 'Fresh Usia 2-8 Day';
-  const typeName = order.type === 'muda' ? `🧒 ${mudaName}` : `👴 ${tuaName}`;
+  const cat = getCategory(order.type);
+  const typeName = `${cat.emoji || '📦'} ${cat.name}`;
   const garansiName = order.garansi ? '✅' : '❌';
   return `<div class="order-item" onclick="showOrderDetail('${order.id}')">
     <div class="order-item-top">
@@ -367,9 +400,8 @@ function showOrderDetail(orderId) {
   const order = allOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  const mudaName = window._prices?.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = window._prices?.tua_name || 'Fresh Usia 2-8 Day';
-  const typeName = order.type === 'muda' ? `🧒 ${mudaName}` : `👴 ${tuaName}`;
+  const cat = getCategory(order.type);
+  const typeName = `${cat.emoji || '📦'} ${cat.name}`;
   const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
 
   const canConfirm = order.status === 'pending' || order.status === 'paid';
@@ -451,10 +483,15 @@ let selectedGaransi = 'true';
 
 function selectType(val, btn) {
   selectedType = val;
-  document.querySelectorAll('[id^="seg-muda"],[id^="seg-tua"]').forEach(b => {
-    if (b.id === 'seg-muda' || b.id === 'seg-tua') b.classList.remove('active');
+  document.querySelectorAll('#uploadCategorySegmented .seg-btn').forEach(b => {
+    b.classList.remove('active');
   });
-  btn.classList.add('active');
+  if (btn) {
+    btn.classList.add('active');
+  } else {
+    const el = document.getElementById(`seg-cat-${val}`);
+    if (el) el.classList.add('active');
+  }
 }
 
 function selectGaransi(val, btn) {
@@ -705,52 +742,215 @@ async function doUpload() {
   }
 }
 
-// ─── PRICES ───────────────────────────────────────────────────────────────────
-async function loadPrices() {
+// ─── CATEGORY & PRICE SETTINGS ───────────────────────────────────────────────
+async function loadCategorySettings() {
+  const container = document.getElementById('categorySettingsList');
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row"></div>
+  `;
+
   try {
-    const res = await apiFetch('/api/admin/prices');
-    const { prices } = await res.json();
-    window._prices = prices || {};
-
-    document.getElementById('p-muda-name').value = prices.muda_name || 'Fresh Usia 0 Day';
-    document.getElementById('p-tua-name').value  = prices.tua_name  || 'Fresh Usia 2-8 Day';
-
-    document.getElementById('p-muda-g').value  = prices.muda_garansi    || '';
-    document.getElementById('p-muda-ng').value = prices.muda_no_garansi || '';
-    document.getElementById('p-tua-g').value   = prices.tua_garansi     || '';
-    document.getElementById('p-tua-ng').value  = prices.tua_no_garansi  || '';
-
-    updateDynamicUIElements();
+    const res = await apiFetch('/api/admin/categories');
+    const data = await res.json();
+    window._categories = data.categories || [];
+    renderCategorySettings();
   } catch (e) {
-    console.error(e);
-    showToast('❌ Gagal memuat pengaturan.');
+    console.error('Error loading category settings:', e);
+    container.innerHTML = '<p style="color:#ef4444; text-align:center; padding:1rem;">Gagal memuat daftar kategori.</p>';
   }
 }
 
-async function savePrices() {
-  const prices = {
-    muda_name:       document.getElementById('p-muda-name').value.trim() || 'Fresh Usia 0 Day',
-    tua_name:        document.getElementById('p-tua-name').value.trim()  || 'Fresh Usia 2-8 Day',
-    muda_garansi:    parseInt(document.getElementById('p-muda-g').value)  || 0,
-    muda_no_garansi: parseInt(document.getElementById('p-muda-ng').value) || 0,
-    tua_garansi:     parseInt(document.getElementById('p-tua-g').value)   || 0,
-    tua_no_garansi:  parseInt(document.getElementById('p-tua-ng').value)  || 0,
-  };
+function renderCategorySettings() {
+  const container = document.getElementById('categorySettingsList');
+  if (!container) return;
+
+  if (!window._categories || !window._categories.length) {
+    container.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:1.5rem;">Belum ada kategori. Klik "➕ Tambah Kategori" di atas untuk membuat kategori baru.</p>';
+    return;
+  }
+
+  container.innerHTML = window._categories.map((c) => `
+    <div class="form-card" id="card-cat-${c.id}" style="margin-bottom:0.75rem; border:1px solid var(--border); border-radius:16px; padding:1.25rem; background:rgba(255,255,255,0.02); display:flex; flex-direction:column; gap:0.9rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.35rem;" id="badge-emoji-${c.id}">${c.emoji || '📦'}</span>
+          <div style="text-align:left;">
+            <div style="font-weight:700; color:#fff; font-size:0.95rem;" id="badge-name-${c.id}">${c.name}</div>
+            <div style="font-size:0.7rem; color:var(--text-muted); font-family:monospace;">ID: ${c.id}</div>
+          </div>
+        </div>
+        <button class="btn-danger" style="padding:0.35rem 0.75rem; font-size:0.75rem; border-radius:8px; cursor:pointer;" onclick="deleteCategory('${c.id}', '${c.name}')">🗑️ Hapus</button>
+      </div>
+
+      <!-- Nama & Emoji -->
+      <div style="display:grid; grid-template-columns: 65px 1fr; gap:0.5rem;">
+        <div>
+          <label style="font-size:0.7rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:0.25rem;">Emoji</label>
+          <input type="text" id="cat-emoji-${c.id}" value="${c.emoji || '📦'}" maxlength="4" oninput="document.getElementById('badge-emoji-${c.id}').textContent = this.value || '📦'" style="width:100%; text-align:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; color:#fff; padding:0.65rem 0; font-size:1.15rem; outline:none; box-sizing:border-box;" />
+        </div>
+        <div>
+          <label style="font-size:0.7rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:0.25rem;">Nama Kategori</label>
+          <input type="text" id="cat-name-${c.id}" value="${c.name}" oninput="document.getElementById('badge-name-${c.id}').textContent = this.value || 'Akun TikTok'" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; color:#fff; padding:0.65rem 0.75rem; font-size:0.9rem; outline:none; box-sizing:border-box;" />
+        </div>
+      </div>
+
+      <!-- Harga -->
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem;">
+        <div>
+          <label style="font-size:0.7rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:0.25rem;">✅ Garansi (Rp)</label>
+          <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:0 0.5rem;">
+            <span style="font-size:0.75rem; color:var(--primary-light); font-weight:700; margin-right:0.2rem;">Rp</span>
+            <input type="number" id="cat-price-g-${c.id}" value="${c.priceGaransi || 0}" style="background:none; border:none; color:#fff; padding:0.65rem 0.2rem; font-size:0.85rem; outline:none; width:100%;" />
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.7rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:0.25rem;">❌ No Garansi (Rp)</label>
+          <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:0 0.5rem;">
+            <span style="font-size:0.75rem; color:var(--primary-light); font-weight:700; margin-right:0.2rem;">Rp</span>
+            <input type="number" id="cat-price-ng-${c.id}" value="${c.priceNoGaransi || 0}" style="background:none; border:none; color:#fff; padding:0.65rem 0.2rem; font-size:0.85rem; outline:none; width:100%;" />
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveAllCategories() {
+  if (!window._categories || !window._categories.length) {
+    showToast('❌ Tidak ada kategori untuk disimpan.');
+    return;
+  }
+
+  const updatedCategories = window._categories.map(c => {
+    const nameEl = document.getElementById(`cat-name-${c.id}`);
+    const emojiEl = document.getElementById(`cat-emoji-${c.id}`);
+    const priceGEl = document.getElementById(`cat-price-g-${c.id}`);
+    const priceNGEl = document.getElementById(`cat-price-ng-${c.id}`);
+
+    return {
+      id: c.id,
+      name: nameEl ? nameEl.value.trim() : c.name,
+      emoji: emojiEl ? emojiEl.value.trim() : c.emoji,
+      priceGaransi: priceGEl ? parseInt(priceGEl.value) || 0 : c.priceGaransi,
+      priceNoGaransi: priceNGEl ? parseInt(priceNGEl.value) || 0 : c.priceNoGaransi,
+    };
+  });
+
+  showToast('⏳ Menyimpan semua perubahan...');
+
   try {
-    const res = await apiFetch('/api/admin/prices', {
+    const res = await apiFetch('/api/admin/categories', {
       method: 'POST',
-      body: JSON.stringify({ prices }),
+      body: JSON.stringify({ categories: updatedCategories }),
     });
     const data = await res.json();
     if (data.success) {
-      window._prices = prices;
-      updateDynamicUIElements();
-      tg.showAlert('✅ Pengaturan berhasil disimpan!');
+      window._categories = data.categories;
+      renderCategorySettings();
+      renderUploadCategorySelector();
+      tg.showAlert('✅ Seluruh pengaturan kategori dan harga berhasil disimpan!');
     } else {
-      showToast('❌ Gagal menyimpan.');
+      showToast('❌ Gagal menyimpan: ' + (data.error || ''));
     }
-  } catch {
-    showToast('❌ Terjadi kesalahan.');
+  } catch (err) {
+    console.error('Save categories error:', err);
+    showToast('❌ Terjadi kesalahan saat menyimpan.');
+  }
+}
+
+// ─── ADD CATEGORY MODAL ───────────────────────────────────────────────────────
+function openAddCategoryModal() {
+  document.getElementById('newCatName').value = '';
+  document.getElementById('newCatEmoji').value = '📦';
+  document.getElementById('newCatPriceGaransi').value = '';
+  document.getElementById('newCatPriceNoGaransi').value = '';
+  document.getElementById('addCategoryModal').style.display = 'flex';
+}
+
+function closeAddCategoryModal(e) {
+  if (e && e.target !== document.getElementById('addCategoryModal')) return;
+  document.getElementById('addCategoryModal').style.display = 'none';
+}
+
+async function submitAddCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  const emoji = document.getElementById('newCatEmoji').value.trim() || '📦';
+  const priceG = parseInt(document.getElementById('newCatPriceGaransi').value) || 0;
+  const priceNG = parseInt(document.getElementById('newCatPriceNoGaransi').value) || 0;
+
+  if (!name) {
+    showToast('❌ Harap isi nama kategori!');
+    return;
+  }
+
+  // Generate ID slug
+  let slug = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  if (!slug || window._categories.some(c => c.id === slug)) {
+    slug = `${slug ? slug + '_' : 'cat_'}${Date.now().toString(36)}`;
+  }
+
+  const newCategory = {
+    id: slug,
+    name,
+    emoji,
+    priceGaransi: priceG,
+    priceNoGaransi: priceNG,
+  };
+
+  const updatedList = [...(window._categories || []), newCategory];
+
+  showToast('⏳ Menambahkan kategori...');
+
+  try {
+    const res = await apiFetch('/api/admin/categories', {
+      method: 'POST',
+      body: JSON.stringify({ categories: updatedList }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      window._categories = data.categories;
+      closeAddCategoryModal();
+      renderCategorySettings();
+      renderUploadCategorySelector();
+      showToast(`✅ Kategori "${name}" berhasil ditambahkan!`);
+    } else {
+      showToast('❌ Gagal menambah kategori: ' + (data.error || ''));
+    }
+  } catch (err) {
+    showToast('❌ Terjadi kesalahan saat menambah kategori.');
+  }
+}
+
+async function deleteCategory(id, name) {
+  if (window._categories.length <= 1) {
+    showToast('⚠️ Minimal harus ada 1 kategori aktif!');
+    return;
+  }
+
+  if (!confirm(`Yakin ingin MENGHAPUS kategori "${name}"?\n\nKategori ini tidak akan muncul lagi di pilihan bot Telegram dan panel upload.`)) {
+    return;
+  }
+
+  showToast(`⏳ Menghapus kategori ${name}...`);
+
+  try {
+    const res = await apiFetch(`/api/admin/categories/${id}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (data.success) {
+      window._categories = data.categories;
+      renderCategorySettings();
+      renderUploadCategorySelector();
+      showToast('✅ Kategori berhasil dihapus!');
+    } else {
+      showToast('❌ Gagal menghapus: ' + (data.error || ''));
+    }
+  } catch (err) {
+    showToast('❌ Terjadi kesalahan saat menghapus kategori.');
   }
 }
 

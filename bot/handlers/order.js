@@ -1,5 +1,6 @@
 const {
   getPrices, getPriceKey, getStockCount,
+  getCategories, getCategoryById,
   createOrder, getAvailableAccounts, markAccountsSold, updateOrderStatus, getOrder,
   getUser, updateUserSaldo,
 } = require('../../server/firebase');
@@ -40,55 +41,61 @@ const QTY_KEYBOARD = (backData) => ({
 
 // ─── STEP 1: Menu beli akun ───────────────────────────────────────────────────
 async function handleBeli(bot, chatId, messageId) {
-  const [mg, mn, tg, tn] = await Promise.all([
-    getStockCount('muda', true),
-    getStockCount('muda', false),
-    getStockCount('tua',  true),
-    getStockCount('tua',  false),
-  ]);
+  const categories = await getCategories();
+  
+  // Ambil stok untuk setiap kategori
+  const stockPromises = categories.map(async (cat) => {
+    const [stockG, stockNG] = await Promise.all([
+      getStockCount(cat.id, true),
+      getStockCount(cat.id, false),
+    ]);
+    return {
+      ...cat,
+      stockG,
+      stockNG,
+    };
+  });
 
-  const prices = await getPrices();
-  const mudaName = prices.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = prices.tua_name || 'Fresh Usia 2-8 Day';
+  const categoriesWithStock = await Promise.all(stockPromises);
 
-  const text = `🛒 <b>Pilih Kategori Akun TikTok</b>
+  let categoryListText = '';
+  categoriesWithStock.forEach(c => {
+    const emoji = c.emoji || '📦';
+    categoryListText += `• ${emoji} <b>${escapeHTML(c.name)}</b>\nStok saat ini: <b>Garansi (${c.stockG})</b> | <b>No Garansi (${c.stockNG})</b>\n\n`;
+  });
 
-Silakan pilih kategori akun yang Anda butuhkan:
+  const text = `🛒 <b>Pilih Kategori Akun TikTok</b>\n\nSilakan pilih kategori akun yang Anda butuhkan:\n\n${categoryListText.trim()}`;
 
-• 🧒 <b>${escapeHTML(mudaName)}</b>
-Stok saat ini: <b>Garansi (${mg})</b> | <b>No Garansi (${mn})</b>
+  const inline_keyboard = [];
+  for (let i = 0; i < categories.length; i += 2) {
+    const row = [];
+    const cat1 = categories[i];
+    row.push({ text: `${cat1.emoji || '📦'} ${cat1.name}`, callback_data: `type_${cat1.id}` });
+    if (categories[i + 1]) {
+      const cat2 = categories[i + 1];
+      row.push({ text: `${cat2.emoji || '📦'} ${cat2.name}`, callback_data: `type_${cat2.id}` });
+    }
+    inline_keyboard.push(row);
+  }
+  inline_keyboard.push([{ text: '« Kembali', callback_data: 'back_menu' }]);
 
-• 👴 <b>${escapeHTML(tuaName)}</b>
-Stok saat ini: <b>Garansi (${tg})</b> | <b>No Garansi (${tn})</b>`;
-
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: `❯ ${mudaName}`, callback_data: 'type_muda' },
-        { text: `❯ ${tuaName}`,  callback_data: 'type_tua'  },
-      ],
-      [{ text: '« Kembali', callback_data: 'back_menu' }],
-    ],
-  };
-
+  const keyboard = { inline_keyboard };
   await editMain(bot, chatId, text, keyboard, messageId);
 }
 
 // ─── STEP 2: Pilih garansi ────────────────────────────────────────────────────
 async function handleSelectType(bot, chatId, messageId, type) {
   getSession(chatId).type = type;
-  const prices = await getPrices();
-  const mudaName = prices.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = prices.tua_name || 'Fresh Usia 2-8 Day';
-  const typeName = type === 'muda' ? mudaName : tuaName;
+  const cat = await getCategoryById(type);
+  const typeName = `${cat.emoji || '📦'} ${cat.name}`;
 
-  const pG  = prices[getPriceKey(type, true)];
-  const pNG = prices[getPriceKey(type, false)];
+  const pG  = cat.priceGaransi;
+  const pNG = cat.priceNoGaransi;
 
   const stockG  = await getStockCount(type, true);
   const stockNG = await getStockCount(type, false);
 
-  const text = `🛡️ <b>Pilih Tipe Garansi (${typeName})</b>
+  const text = `🛡️ <b>Pilih Tipe Garansi (${escapeHTML(typeName)})</b>
 
 Silakan pilih opsi garansi untuk keamanan akun Anda:
 
@@ -118,17 +125,15 @@ async function handleSelectGaransi(bot, chatId, messageId, garansi) {
   const session = getSession(chatId);
   session.garansi = garansi;
 
-  const prices = await getPrices();
-  const price  = prices[getPriceKey(session.type, garansi)];
-  const stock  = await getStockCount(session.type, garansi);
+  const cat = await getCategoryById(session.type);
+  const price = garansi ? cat.priceGaransi : cat.priceNoGaransi;
+  const stock = await getStockCount(session.type, garansi);
   session.pricePerUnit = price;
 
-  const mudaName = prices.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = prices.tua_name || 'Fresh Usia 2-8 Day';
-  const typeName    = session.type === 'muda' ? mudaName : tuaName;
+  const typeName    = `${cat.emoji || '📦'} ${cat.name}`;
   const garansiName = garansi ? '✅ Garansi' : '❌ No Garansi';
 
-  const text = `📦 <b>${typeName} — ${garansiName}</b>
+  const text = `📦 <b>${escapeHTML(typeName)} — ${garansiName}</b>
 
 <blockquote>💰 Harga: Rp ${formatRupiah(price)}/akun
 📊 Stok tersedia: ${stock} akun</blockquote>
@@ -158,10 +163,8 @@ async function handleQtySelected(bot, chatId, messageId, qty) {
   const total       = pricePerUnit * qty;
   session.totalPrice = total;
 
-  const prices = await getPrices();
-  const mudaName = prices.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = prices.tua_name || 'Fresh Usia 2-8 Day';
-  const typeName    = type === 'muda' ? mudaName : tuaName;
+  const cat = await getCategoryById(type);
+  const typeName    = `${cat.emoji || '📦'} ${cat.name}`;
   const garansiName = garansi ? '✅ Garansi' : '❌ No Garansi';
 
   // Ambil saldo user untuk konfirmasi pembayaran
@@ -170,7 +173,7 @@ async function handleQtySelected(bot, chatId, messageId, qty) {
 
   const text = `🧾 <b>Konfirmasi Order</b>
 
-<blockquote>📦 Produk: <b>${typeName}</b>
+<blockquote>📦 Produk: <b>${escapeHTML(typeName)}</b>
 🛡️ Garansi: <b>${garansiName}</b>
 🔢 Jumlah: <b>${qty} akun</b>
 💰 Harga: Rp ${formatRupiah(pricePerUnit)} × ${qty}
@@ -362,14 +365,12 @@ async function handleTextMessage(bot, msg) {
 
 // ─── DELIVER ORDER (dipanggil setelah payment confirm) ────────────────────────
 async function deliverOrder(bot, orderId) {
-  const { updateUserSaldo, updateOrderStatus, getPrices } = require('../../server/firebase');
+  const { updateUserSaldo, updateOrderStatus, getCategoryById } = require('../../server/firebase');
   const order = await getOrder(orderId);
   if (!order || order.status === 'done') return;
 
-  const prices = await getPrices();
-  const mudaName = prices.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = prices.tua_name || 'Fresh Usia 2-8 Day';
-  const dynamicProductName = order.type === 'muda' ? mudaName : tuaName;
+  const cat = await getCategoryById(order.type);
+  const dynamicProductName = `${cat.emoji ? cat.emoji + ' ' : ''}${cat.name}`;
 
   const chatId = order.userId;
 

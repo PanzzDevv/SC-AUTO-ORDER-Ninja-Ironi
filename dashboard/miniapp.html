@@ -208,8 +208,9 @@
 
         <div class="form-card">
           <div class="form-group">
-            <label>Tipe Akun</label>
-            <div class="segmented">
+            <label>Tipe Akun / Kategori</label>
+            <div class="segmented" id="uploadCategorySegmented">
+              <!-- Dinamis dimuat oleh JS -->
               <button class="seg-btn active" id="seg-muda" onclick="selectType('muda', this)">🧒 Fresh Usia 0 Day</button>
               <button class="seg-btn" id="seg-tua" onclick="selectType('tua', this)">👴 Fresh Usia 2-8 Day</button>
             </div>
@@ -265,58 +266,25 @@
 
       <!-- ── SETTINGS TAB ───────────────────────────────────────────── -->
       <div class="tab-content" id="tab-settings">
-        <div class="page-header">
-          <h1 class="page-title">Atur Produk</h1>
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+          <div>
+            <h1 class="page-title" style="margin:0;">Atur Produk & Kategori</h1>
+            <p class="page-sub" style="margin:0.25rem 0 0 0;">Kelola nama, harga, & tambah kategori</p>
+          </div>
+          <button class="btn-primary" onclick="openAddCategoryModal()" style="padding:0.5rem 0.9rem; font-size:0.8rem; border-radius:10px; display:flex; align-items:center; gap:0.35rem; white-space:nowrap; cursor:pointer;">
+            <span>➕</span> Tambah Kategori
+          </button>
         </div>
 
-        <div class="form-card" style="margin-bottom: 1.25rem;">
-          <h3 style="margin: 0 0 1rem 0; font-size: 0.95rem; font-weight: 700; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.5px;">🏷️ Edit Nama Kategori Produk</h3>
-          <div class="price-row" style="margin-bottom: 1rem; display:flex; flex-direction:column; gap:0.4rem;">
-            <div class="price-label" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Nama Kategori 1 (Muda)</div>
-            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
-              <input type="text" id="p-muda-name" placeholder="Fresh Usia 0 Day" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.95rem; outline:none; flex:1;" />
-            </div>
-          </div>
-          <div class="price-row" style="display:flex; flex-direction:column; gap:0.4rem;">
-            <div class="price-label" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Nama Kategori 2 (Tua)</div>
-            <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
-              <input type="text" id="p-tua-name" placeholder="Fresh Usia 2-8 Day" style="background:none; border:none; color:#fff; padding:0.75rem 0.25rem; font-size:0.95rem; outline:none; flex:1;" />
-            </div>
-          </div>
+        <!-- Dynamic Category Cards List -->
+        <div id="categorySettingsList" style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.25rem;">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
         </div>
 
-        <div class="form-card">
-          <h3 style="margin: 0 0 1rem 0; font-size: 0.95rem; font-weight: 700; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.5px;">💰 Atur Harga</h3>
-          <div class="price-row">
-            <div class="price-label">🧒 <span id="lbl-muda-g">Fresh Usia 0 Day</span> + ✅ Garansi</div>
-            <div class="price-input-row">
-              <span class="rp">Rp</span>
-              <input type="number" id="p-muda-g" placeholder="50000" />
-            </div>
-          </div>
-          <div class="price-row">
-            <div class="price-label">🧒 <span id="lbl-muda-ng">Fresh Usia 0 Day</span> + ❌ No Garansi</div>
-            <div class="price-input-row">
-              <span class="rp">Rp</span>
-              <input type="number" id="p-muda-ng" placeholder="30000" />
-            </div>
-          </div>
-          <div class="price-row">
-            <div class="price-label">👴 <span id="lbl-tua-g">Fresh Usia 2-8 Day</span> + ✅ Garansi</div>
-            <div class="price-input-row">
-              <span class="rp">Rp</span>
-              <input type="number" id="p-tua-g" placeholder="80000" />
-            </div>
-          </div>
-          <div class="price-row">
-            <div class="price-label">👴 <span id="lbl-tua-ng">Fresh Usia 2-8 Day</span> + ❌ No Garansi</div>
-            <div class="price-input-row">
-              <span class="rp">Rp</span>
-              <input type="number" id="p-tua-ng" placeholder="60000" />
-            </div>
-          </div>
-          <button class="btn-primary full" style="margin-top:.5rem;" onclick="savePrices()">💾 Simpan Pengaturan</button>
-        </div>
+        <button class="btn-primary full" style="margin-top:0.5rem; height:3rem; font-size:0.95rem; font-weight:700;" onclick="saveAllCategories()">
+          💾 Simpan Semua Perubahan
+        </button>
       </div>
 
       <!-- ── USERS TAB ─────────────────────────────────────────────── -->
@@ -478,6 +446,61 @@
         <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
           <button class="btn-primary full" style="flex:1;" onclick="saveUserSaldo()">💾 Simpan</button>
           <button class="btn-secondary full" style="flex:1;" onclick="closeSaldoModal()">✕ Batal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD CATEGORY MODAL -->
+  <div id="addCategoryModal" class="modal-overlay" style="display:none;" onclick="closeAddCategoryModal(event)">
+    <div class="modal-card" style="max-width:380px; width:100%; border: 1px solid rgba(192,132,252,0.35); background: linear-gradient(145deg, #1a1228, #120e1e);">
+      <div class="modal-header">
+        <h3>➕ Tambah Kategori Baru</h3>
+        <button class="modal-close" onclick="closeAddCategoryModal()">✕</button>
+      </div>
+      <div style="padding: 1.25rem; display:flex; flex-direction:column; gap:0.9rem;">
+        
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.75rem; color:#bbb; display:block; margin-bottom:0.35rem; text-align:left;">Nama Kategori</label>
+          <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+            <input type="text" id="newCatName" placeholder="Contoh: Akun TikTok 1K+ Followers" style="background:none; border:none; color:#fff; padding:0.7rem 0.25rem; font-size:0.9rem; outline:none; flex:1;" />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.75rem; color:#bbb; display:block; margin-bottom:0.35rem; text-align:left;">Emoji Icon</label>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="text" id="newCatEmoji" value="📦" maxlength="4" style="width:50px; text-align:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; color:#fff; padding:0.7rem 0; font-size:1.2rem; outline:none;" />
+            <div style="display:flex; gap:0.25rem; flex-wrap:wrap;">
+              <button type="button" onclick="document.getElementById('newCatEmoji').value='🧒'" style="background:rgba(255,255,255,0.08); border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:0.9rem;">🧒</button>
+              <button type="button" onclick="document.getElementById('newCatEmoji').value='👴'" style="background:rgba(255,255,255,0.08); border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:0.9rem;">👴</button>
+              <button type="button" onclick="document.getElementById('newCatEmoji').value='⭐'" style="background:rgba(255,255,255,0.08); border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:0.9rem;">⭐</button>
+              <button type="button" onclick="document.getElementById('newCatEmoji').value='🔥'" style="background:rgba(255,255,255,0.08); border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:0.9rem;">🔥</button>
+              <button type="button" onclick="document.getElementById('newCatEmoji').value='💎'" style="background:rgba(255,255,255,0.08); border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:0.9rem;">💎</button>
+              <button type="button" onclick="document.getElementById('newCatEmoji').value='🚀'" style="background:rgba(255,255,255,0.08); border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:0.9rem;">🚀</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.75rem; color:#bbb; display:block; margin-bottom:0.35rem; text-align:left;">Harga ✅ Dengan Garansi (Rp)</label>
+          <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+            <span style="color:var(--primary-light); font-weight:700; margin-right:0.25rem; font-size:0.85rem;">Rp</span>
+            <input type="number" id="newCatPriceGaransi" placeholder="50000" style="background:none; border:none; color:#fff; padding:0.7rem 0.25rem; font-size:0.9rem; outline:none; flex:1;" />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.75rem; color:#bbb; display:block; margin-bottom:0.35rem; text-align:left;">Harga ❌ Tanpa Garansi (Rp)</label>
+          <div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:0 0.75rem;">
+            <span style="color:var(--primary-light); font-weight:700; margin-right:0.25rem; font-size:0.85rem;">Rp</span>
+            <input type="number" id="newCatPriceNoGaransi" placeholder="30000" style="background:none; border:none; color:#fff; padding:0.7rem 0.25rem; font-size:0.9rem; outline:none; flex:1;" />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button class="btn-primary full" style="flex:1;" onclick="submitAddCategory()">➕ Tambah Kategori</button>
+          <button class="btn-secondary full" style="flex:1;" onclick="closeAddCategoryModal()">✕ Batal</button>
         </div>
       </div>
     </div>

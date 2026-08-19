@@ -61,7 +61,7 @@ function statusBadge(status) {
 }
 
 function orderRow(order, compact = false) {
-  const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : '👴 Fresh Usia 2-8 Day';
+  const typeName = order.type === 'muda' ? '🧒 Fresh Usia 0 Day' : order.type === 'tua' ? '👴 Fresh Usia 2-8 Day' : `📦 ${order.type}`;
   const garansiName = order.garansi ? '✅ Garansi' : '❌ No Garansi';
   const shortId = order.id.slice(0, 8) + '...';
 
@@ -173,7 +173,7 @@ async function loadStock() {
 
     grid.innerHTML = stock.map(s => `
       <div class="stock-card">
-        <div class="stock-emoji">${s.type === 'muda' ? '🧒' : '👴'}</div>
+        <div class="stock-emoji">${s.emoji || (s.type === 'muda' ? '🧒' : s.type === 'tua' ? '👴' : '📦')}</div>
         <div class="stock-info">
           <h3>${s.label}</h3>
           <div class="stock-num" style="color: ${s.count > 5 ? '#A855F7' : s.count > 0 ? '#f59e0b' : '#ef4444'}">${s.count}</div>

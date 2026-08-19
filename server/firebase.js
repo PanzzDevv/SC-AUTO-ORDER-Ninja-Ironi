@@ -141,30 +141,149 @@ async function getStockItems(type, garansi) {
   return items;
 }
 
-async function getAllStock() {
-  const prices = await getPrices();
-  const mudaName = prices.muda_name || 'Fresh Usia 0 Day';
-  const tuaName = prices.tua_name || 'Fresh Usia 2-8 Day';
+// ─── CATEGORIES & PRICES ──────────────────────────────────────────────────────
+const DEFAULT_CATEGORIES = [
+  {
+    id: 'muda',
+    name: 'Fresh Usia 0 Day',
+    emoji: '🧒',
+    priceGaransi: 50000,
+    priceNoGaransi: 30000,
+  },
+  {
+    id: 'tua',
+    name: 'Fresh Usia 2-8 Day',
+    emoji: '👴',
+    priceGaransi: 80000,
+    priceNoGaransi: 60000,
+  }
+];
 
-  const categories = [
-    { type: 'muda', garansi: true,  label: `Akun Tiktok ${mudaName} + Garansi` },
-    { type: 'muda', garansi: false, label: `Akun Tiktok ${mudaName} + No Garansi` },
-    { type: 'tua',  garansi: true,  label: `Akun Tiktok ${tuaName} + Garansi` },
-    { type: 'tua',  garansi: false, label: `Akun Tiktok ${tuaName} + No Garansi` },
-  ];
+async function getCategories() {
+  try {
+    const doc = await db.collection('settings').doc('categories').get();
+    if (doc.exists && Array.isArray(doc.data().list) && doc.data().list.length > 0) {
+      return doc.data().list;
+    }
+  } catch (err) {
+    console.error('Error fetching settings/categories:', err.message);
+  }
+
+  // Fallback / Initial migration from settings/prices if available
+  try {
+    const pDoc = await db.collection('settings').doc('prices').get();
+    if (pDoc.exists) {
+      const pData = pDoc.data();
+      const mudaName = pData.muda_name || 'Fresh Usia 0 Day';
+      const tuaName = pData.tua_name || 'Fresh Usia 2-8 Day';
+      const mudaGaransi = pData.muda_garansi !== undefined ? pData.muda_garansi : 50000;
+      const mudaNoGaransi = pData.muda_no_garansi !== undefined ? pData.muda_no_garansi : 30000;
+      const tuaGaransi = pData.tua_garansi !== undefined ? pData.tua_garansi : 80000;
+      const tuaNoGaransi = pData.tua_no_garansi !== undefined ? pData.tua_no_garansi : 60000;
+
+      return [
+        { id: 'muda', name: mudaName, emoji: '🧒', priceGaransi: Number(mudaGaransi), priceNoGaransi: Number(mudaNoGaransi) },
+        { id: 'tua',  name: tuaName,  emoji: '👴', priceGaransi: Number(tuaGaransi),  priceNoGaransi: Number(tuaNoGaransi) },
+      ];
+    }
+  } catch (err) {
+    console.error('Error reading fallback prices for categories:', err.message);
+  }
+
+  return DEFAULT_CATEGORIES;
+}
+
+async function saveCategories(categories) {
+  if (!Array.isArray(categories) || categories.length === 0) {
+    throw new Error('Kategori tidak boleh kosong');
+  }
+
+  // Bersihkan dan format tiap kategori
+  const cleanList = categories.map(c => {
+    let cleanId = String(c.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    if (!cleanId) {
+      cleanId = `cat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+    }
+    return {
+      id: cleanId,
+      name: String(c.name || '').trim() || 'Akun TikTok',
+      emoji: String(c.emoji || '📦').trim(),
+      priceGaransi: Number(c.priceGaransi) || 0,
+      priceNoGaransi: Number(c.priceNoGaransi) || 0,
+    };
+  });
+
+  // Simpan ke Firestore doc settings/categories
+  await db.collection('settings').doc('categories').set({
+    list: cleanList,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Perbarui juga settings/prices untuk kompatibilitas script lama
+  const priceMap = {};
+  cleanList.forEach(c => {
+    priceMap[`${c.id}_name`] = c.name;
+    priceMap[`${c.id}_emoji`] = c.emoji;
+    priceMap[`${c.id}_garansi`] = c.priceGaransi;
+    priceMap[`${c.id}_no_garansi`] = c.priceNoGaransi;
+  });
+  await db.collection('settings').doc('prices').set(priceMap, { merge: true });
+
+  return cleanList;
+}
+
+async function getCategoryById(id) {
+  const categories = await getCategories();
+  const found = categories.find(c => c.id === id);
+  if (found) return found;
+  return {
+    id: id || 'unknown',
+    name: id === 'muda' ? 'Fresh Usia 0 Day' : id === 'tua' ? 'Fresh Usia 2-8 Day' : (id || 'Akun TikTok'),
+    emoji: id === 'muda' ? '🧒' : id === 'tua' ? '👴' : '📦',
+    priceGaransi: 0,
+    priceNoGaransi: 0,
+  };
+}
+
+async function getAllStock() {
+  const categories = await getCategories();
   const result = [];
+  
   for (const cat of categories) {
-    const items = await getStockItems(cat.type, cat.garansi);
-    result.push({ 
-      ...cat, 
-      count: items.length, 
-      items: items.map(i => ({ 
-        id: i.id, 
-        fileName: i.fileName || 'Unknown File', 
-        createdAt: i.createdAt ? (typeof i.createdAt.toDate === 'function' ? i.createdAt.toDate().toISOString() : i.createdAt) : null 
-      })) 
+    const [itemsGaransi, itemsNoGaransi] = await Promise.all([
+      getStockItems(cat.id, true),
+      getStockItems(cat.id, false),
+    ]);
+
+    result.push({
+      type: cat.id,
+      garansi: true,
+      label: `Akun Tiktok ${cat.name} + Garansi`,
+      categoryName: cat.name,
+      emoji: cat.emoji || '📦',
+      count: itemsGaransi.length,
+      items: itemsGaransi.map(i => ({
+        id: i.id,
+        fileName: i.fileName || 'Unknown File',
+        createdAt: i.createdAt ? (typeof i.createdAt.toDate === 'function' ? i.createdAt.toDate().toISOString() : i.createdAt) : null,
+      })),
+    });
+
+    result.push({
+      type: cat.id,
+      garansi: false,
+      label: `Akun Tiktok ${cat.name} + No Garansi`,
+      categoryName: cat.name,
+      emoji: cat.emoji || '📦',
+      count: itemsNoGaransi.length,
+      items: itemsNoGaransi.map(i => ({
+        id: i.id,
+        fileName: i.fileName || 'Unknown File',
+        createdAt: i.createdAt ? (typeof i.createdAt.toDate === 'function' ? i.createdAt.toDate().toISOString() : i.createdAt) : null,
+      })),
     });
   }
+
   return result;
 }
 
@@ -328,19 +447,26 @@ async function getOrderStats() {
 
 // ─── PRICES ───────────────────────────────────────────────────────────────────
 async function getPrices() {
-  const doc = await db.collection('settings').doc('prices').get();
-  const defaultData = {
-    muda_garansi: 50000,
-    muda_no_garansi: 30000,
-    tua_garansi: 80000,
-    tua_no_garansi: 60000,
-    muda_name: 'Fresh Usia 0 Day',
-    tua_name: 'Fresh Usia 2-8 Day',
-  };
-  if (doc.exists) {
-    return { ...defaultData, ...doc.data() };
+  const categories = await getCategories();
+  const prices = {};
+  categories.forEach(c => {
+    prices[`${c.id}_name`] = c.name;
+    prices[`${c.id}_emoji`] = c.emoji;
+    prices[`${c.id}_garansi`] = c.priceGaransi;
+    prices[`${c.id}_no_garansi`] = c.priceNoGaransi;
+  });
+
+  // Ambil data mentah dari doc settings/prices jika ada
+  try {
+    const doc = await db.collection('settings').doc('prices').get();
+    if (doc.exists) {
+      return { ...doc.data(), ...prices };
+    }
+  } catch (err) {
+    console.error('Error fetching settings/prices:', err.message);
   }
-  return defaultData;
+
+  return prices;
 }
 
 async function updatePrices(prices) {
@@ -405,6 +531,8 @@ module.exports = {
   getUser, getUserByUsername, createUser, getUserOrCreate, updateUserSaldo, getAllUsers, setUserSaldo,
   getAvailableAccounts, getStockCount, getStockItems, getAllStock, markAccountsSold, addAccount, deleteStockCategory,
   createOrder, getOrder, getOrderByPanzzpayInvoiceId, getOrderByPakasirId, updateOrderStatus, getAllOrders, getOrderStats,
+  getCategories, saveCategories, getCategoryById,
   getPrices, updatePrices, getPriceKey,
   saveHelpTicket, getUserIdFromHelpTicket,
 };
+
