@@ -75,7 +75,9 @@ async function editMain(bot, chatId, text, keyboard, msgId = null) {
   let isPhoto  = session.mainIsPhoto;
 
   // Recovery: jika targetId tidak ada di session, coba ambil dari Firestore
-  if (!targetId) {
+  // OPTIMIZED: Hanya coba recovery 1x per session, bukan setiap editMain call
+  if (!targetId && !session._recoveryAttempted) {
+    session._recoveryAttempted = true;
     try {
       const { getUser } = require('../server/firebase');
       const user = await getUser(chatId);

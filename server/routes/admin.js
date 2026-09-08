@@ -9,7 +9,8 @@ const {
   getAllOrders, getOrderStats, getAllStock, deleteStockCategory,
   updateOrderStatus, addAccount, getPrices, updatePrices, db,
   getAllUsers, setUserSaldo,
-  getCategories, saveCategories, getCategoryById
+  getCategories, saveCategories, getCategoryById,
+  cacheGet, cacheSet, cacheInvalidate
 } = require('../firebase');
 const { uploadFileToTelegram } = require('../telegramStorage');
 
@@ -85,9 +86,13 @@ router.post('/miniapp-auth', (req, res) => {
 });
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
+// OPTIMIZED: Stats endpoint sudah menggunakan cache dari firebase.js
+// getOrderStats() cache 2 menit, getAllStock() cache 1 menit
 router.get('/stats', adminAuth, async (req, res) => {
   try {
     const [stats, stock] = await Promise.all([getOrderStats(), getAllStock()]);
+    // Response-level cache header agar browser juga tidak spam request
+    res.set('Cache-Control', 'private, max-age=30');
     res.json({ stats, stock });
   } catch (e) {
     console.error('Stats error:', e);
@@ -354,20 +359,35 @@ router.post('/prices', adminAuth, async (req, res) => {
 });
 
 // ─── REALTIME ORDERS (long-poll / snapshot for dashboard) ─────────────────────
+// OPTIMIZED: Debounce SSE updates agar tidak kirim terlalu sering (min 5 detik antar update)
 router.get('/orders/stream', adminAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
+  let debounceTimer = null;
+  const DEBOUNCE_MS = 5000; // Minimal 5 detik antar update SSE
+
   const unsubscribe = db.collection('orders')
     .orderBy('createdAt', 'desc')
-    .limit(50)
+    .limit(30) // Dikurangi dari 50 → 30 untuk hemat reads
     .onSnapshot(snapshot => {
-      const orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      res.write(`data: ${JSON.stringify(orders)}\n\n`);
+      // Debounce: jika ada update berturut-turut, hanya kirim yang terakhir
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        try {
+          const orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          res.write(`data: ${JSON.stringify(orders)}\n\n`);
+        } catch (err) {
+          // Connection mungkin sudah ditutup
+        }
+      }, DEBOUNCE_MS);
     });
 
-  req.on('close', () => unsubscribe());
+  req.on('close', () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    unsubscribe();
+  });
 });
 
 // ─── USER MANAGEMENT ──────────────────────────────────────────────────────────
