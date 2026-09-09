@@ -9,10 +9,17 @@ process.env.NTBA_FIX_350 = '1';
 process.env.DISABLE_BOT_POLLING = 'true';
 
 const { app } = require('../server/app');
-const { bot } = require('../bot/index');
 const { setBotInstance } = require('../server/routes/webhook');
 
-// Wire bot instance so webhook and manual fulfillment can send messages from Vercel
-setBotInstance(bot);
+// If BOT_TOKEN is configured in Vercel, instantiate bot without polling for webhook delivery
+if (process.env.BOT_TOKEN) {
+  try {
+    const TelegramBot = require('node-telegram-bot-api');
+    const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: false });
+    setBotInstance(bot);
+  } catch (botErr) {
+    console.warn('⚠️ Could not initialize bot on Vercel:', botErr.message);
+  }
+}
 
 module.exports = app;

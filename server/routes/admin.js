@@ -38,26 +38,32 @@ function adminAuth(req, res, next) {
 // ─── VALIDATE TELEGRAM initData ───────────────────────────────────────────────
 function validateTelegramInitData(initData) {
   try {
+    const botToken = (process.env.BOT_TOKEN || '').trim();
+    if (!botToken) return false;
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
+    if (!hash) return false;
     params.delete('hash');
     const dataCheckString = [...params.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}=${v}`)
       .join('\n');
     const secretKey = crypto.createHmac('sha256', 'WebAppData')
-      .update(process.env.BOT_TOKEN).digest();
+      .update(botToken).digest();
     const computedHash = crypto.createHmac('sha256', secretKey)
       .update(dataCheckString).digest('hex');
     return computedHash === hash;
-  } catch { return false; }
+  } catch (err) {
+    console.error('[validateTelegramInitData error]:', err.message);
+    return false;
+  }
 }
 
 // ─── LOGIN (web dashboard) ───────────────────────────────────────────────────
 router.post('/login', (req, res) => {
   const { password } = req.body;
   if (password === process.env.ADMIN_PASSWORD) {
-    res.json({ success: true, token: process.env.ADMIN_SECRET_KEY });
+    res.json({ success: true, token: process.env.ADMIN_SECRET_KEY || 'panzzstore2026' });
   } else {
     res.status(401).json({ error: 'Password salah' });
   }
@@ -66,23 +72,59 @@ router.post('/login', (req, res) => {
 // ─── MINIAPP AUTH (validate Telegram initData) ────────────────────────────────
 router.post('/miniapp-auth', (req, res) => {
   const { initData } = req.body;
-  if (!initData) return res.status(400).json({ error: 'No initData' });
+  if (!initData) return res.status(400).json({ error: 'NO_INIT_DATA', message: 'Data Telegram (initData) kosong.' });
+
+  const botToken = (process.env.BOT_TOKEN || '').trim();
+  if (!botToken) {
+    console.error('❌ [MiniApp Auth] BOT_TOKEN is missing in Vercel Environment Variables!');
+    return res.status(403).json({
+      error: 'BOT_TOKEN_MISSING',
+      message: 'BOT_TOKEN belum diset di Environment Variables Vercel.'
+    });
+  }
 
   const valid = validateTelegramInitData(initData);
-  if (!valid) return res.status(403).json({ error: 'Invalid initData' });
+  if (!valid) {
+    console.warn('⚠️ [MiniApp Auth] Invalid Telegram hash verification failed.');
+    return res.status(403).json({
+      error: 'INVALID_INIT_DATA',
+      message: 'Validasi token Telegram gagal. Pastikan BOT_TOKEN di Vercel sama persis dengan bot Telegram ini.'
+    });
+  }
 
   // Check if user is admin
   const params = new URLSearchParams(initData);
   const userJson = params.get('user');
-  if (!userJson) return res.status(403).json({ error: 'No user' });
+  if (!userJson) return res.status(403).json({ error: 'NO_USER_DATA', message: 'Data user Telegram tidak ditemukan di initData.' });
 
-  const user = JSON.parse(userJson);
-  const adminIds = (process.env.ADMIN_TELEGRAM_ID || '').split(',').map(s => s.trim());
-  if (!adminIds.includes(String(user.id))) {
-    return res.status(403).json({ error: 'Not admin' });
+  let user;
+  try {
+    user = JSON.parse(userJson);
+  } catch {
+    return res.status(400).json({ error: 'MALFORMED_USER', message: 'Format data user Telegram rusak.' });
   }
 
-  res.json({ success: true, token: process.env.ADMIN_SECRET_KEY });
+  const adminIds = (process.env.ADMIN_TELEGRAM_ID || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (adminIds.length === 0) {
+    console.error('❌ [MiniApp Auth] ADMIN_TELEGRAM_ID is missing in Vercel Environment Variables!');
+    return res.status(403).json({
+      error: 'ADMIN_ID_MISSING',
+      userId: user.id,
+      message: 'ADMIN_TELEGRAM_ID belum diset di Environment Variables Vercel.'
+    });
+  }
+
+  if (!adminIds.includes(String(user.id))) {
+    console.warn(`⚠️ [MiniApp Auth] User ${user.id} (${user.username || user.first_name}) is not in adminIds:`, adminIds);
+    return res.status(403).json({
+      error: 'NOT_ADMIN',
+      userId: user.id,
+      message: `ID Telegram Anda (${user.id}) belum terdaftar di ADMIN_TELEGRAM_ID.`
+    });
+  }
+
+  const secretToken = process.env.ADMIN_SECRET_KEY || 'panzzstore2026';
+  res.json({ success: true, token: secretToken });
 });
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
@@ -294,8 +336,10 @@ async function triggerBackgroundUpload() {
   }
 }
 
-// Auto-run trigger on startup to resume any pending uploads
-triggerBackgroundUpload().catch(console.error);
+// Auto-run trigger on startup to resume any pending uploads (only in persistent server mode)
+if (!process.env.VERCEL && process.env.DISABLE_BOT_POLLING !== 'true') {
+  triggerBackgroundUpload().catch(console.error);
+}
 
 // ─── CATEGORIES ───────────────────────────────────────────────────────────────
 router.get('/categories', adminAuth, async (req, res) => {

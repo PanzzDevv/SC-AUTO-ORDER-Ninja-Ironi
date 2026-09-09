@@ -7,32 +7,10 @@
     },
     {
       "src": "api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "dashboard/**",
-          "serviceAccountKey.json"
-        ]
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
-    {
-      "src": "/dashboard/css/(.*)",
-      "dest": "/dashboard/css/$1"
-    },
-    {
-      "src": "/dashboard/js/(.*)",
-      "dest": "/dashboard/js/$1"
-    },
-    {
-      "src": "/miniapp",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/dashboard",
-      "dest": "/api/index.js"
-    },
     {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
@@ -42,8 +20,24 @@
       "dest": "/api/index.js"
     },
     {
+      "src": "/dashboard/css/(.*)",
+      "dest": "/dashboard/css/$1"
+    },
+    {
+      "src": "/dashboard/js/(.*)",
+      "dest": "/dashboard/js/$1"
+    },
+    {
+      "src": "/dashboard(/.*)?",
+      "dest": "/dashboard/index.html"
+    },
+    {
+      "src": "/miniapp(/.*)?",
+      "dest": "/dashboard/index.html"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/api/index.js"
+      "dest": "/dashboard/index.html"
     }
   ]
 }

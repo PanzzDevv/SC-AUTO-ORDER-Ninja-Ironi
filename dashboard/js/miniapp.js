@@ -14,7 +14,7 @@ const user = tg.initDataUnsafe?.user;
 // ─── AUTH CHECK ───────────────────────────────────────────────────────────────
 async function checkAuth() {
   if (!user) {
-    showUnauthorized();
+    showUnauthorized('Buka Mini App ini melalui tombol di Telegram agar identitas akun Anda terbaca.');
     return;
   }
 
@@ -24,28 +24,45 @@ async function checkAuth() {
       body: JSON.stringify({ initData }),
     });
 
-    if (res.ok) {
-      const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data.success) {
       window._adminToken = data.token;
       initApp();
     } else {
-      showUnauthorized();
+      const msg = data.message || (data.error ? `Error: ${data.error}` : 'Kamu tidak memiliki izin untuk mengakses panel admin ini.');
+      const detail = data.userId ? `Telegram ID Anda: ${data.userId}` : (data.error ? `Kode error: ${data.error}` : null);
+      showUnauthorized(msg, detail);
     }
   } catch (e) {
-    // Dev fallback: if server not reachable, use local check
-    console.warn('Auth server unreachable, using local check');
+    console.warn('Auth server error:', e);
     if (ADMIN_IDS.includes(String(user.id))) {
       window._adminToken = 'dev-token';
       initApp();
     } else {
-      showUnauthorized();
+      showUnauthorized('Gagal menghubungi server autentikasi Vercel.', e.message);
     }
   }
 }
 
-function showUnauthorized() {
+function showUnauthorized(customMsg = null, detail = null) {
   document.getElementById('loadingScreen').style.display = 'none';
-  document.getElementById('unauthorizedScreen').style.display = 'flex';
+  const unauth = document.getElementById('unauthorizedScreen');
+  unauth.style.display = 'flex';
+  if (customMsg) {
+    const p = unauth.querySelector('p');
+    if (p) p.textContent = customMsg;
+  }
+  if (detail) {
+    let sub = unauth.querySelector('.unauth-detail');
+    if (!sub) {
+      sub = document.createElement('div');
+      sub.className = 'unauth-detail';
+      sub.style.cssText = 'font-size: 0.85rem; color: #cbd5e1; margin-top: 14px; word-break: break-all; padding: 10px 14px; background: rgba(255,255,255,0.08); border-radius: 8px; text-align: center; line-height: 1.4;';
+      unauth.appendChild(sub);
+    }
+    sub.textContent = detail;
+  }
 }
 
 window._categories = [];

@@ -39,13 +39,37 @@ if (!serviceAccount) {
   console.log('✅ Firebase: menggunakan environment variables terpisah');
 }
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+let db;
+try {
+  if (!admin.apps.length) {
+    if (serviceAccount && serviceAccount.project_id && (serviceAccount.private_key || serviceAccount.private_key_id)) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log('✅ Firebase Admin initialized successfully.');
+    } else {
+      console.warn('⚠️ Firebase: Credentials not found. Please set FIREBASE_SERVICE_ACCOUNT or (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) in environment variables.');
+    }
+  }
+  if (admin.apps.length) {
+    db = admin.firestore();
+  }
+} catch (err) {
+  console.error('❌ Firebase Admin initialization error:', err.message);
 }
 
-const db = admin.firestore();
+// Fallback proxy to provide clear error message if db is accessed before credentials are configured
+if (!db) {
+  db = new Proxy({}, {
+    get(target, prop) {
+      if (admin.apps.length) {
+        db = admin.firestore();
+        return db[prop];
+      }
+      throw new Error('Firebase credentials missing! Silakan set FIREBASE_SERVICE_ACCOUNT atau (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) di Settings > Environment Variables Vercel.');
+    }
+  });
+}
 
 // ─── IN-MEMORY CACHE SYSTEM ──────────────────────────────────────────────────
 // Cache sederhana berbasis TTL untuk mengurangi reads Firestore secara drastis.
