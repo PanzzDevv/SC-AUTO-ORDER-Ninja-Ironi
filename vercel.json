@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "dashboard/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "dashboard/**",
+          "serviceAccountKey.json"
+        ]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/dashboard/css/(.*)",
+      "dest": "/dashboard/css/$1"
+    },
+    {
+      "src": "/dashboard/js/(.*)",
+      "dest": "/dashboard/js/$1"
+    },
+    {
+      "src": "/miniapp",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/webhook/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.js"
+    }
+  ]
+}

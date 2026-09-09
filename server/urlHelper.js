@@ -42,8 +42,8 @@ function getBaseUrl(req = null) {
     return detectedBaseUrl;
   }
 
-  // 3. Environment variables explicitly set by user (SERVER_URL, BASE_URL, PUBLIC_URL, APP_URL)
-  const envUrl = process.env.SERVER_URL || process.env.BASE_URL || process.env.PUBLIC_URL || process.env.APP_URL;
+  // 3. Environment variables explicitly set by user (MINIAPP_URL, SERVER_URL, BASE_URL, PUBLIC_URL, APP_URL)
+  const envUrl = process.env.MINIAPP_URL || process.env.SERVER_URL || process.env.BASE_URL || process.env.PUBLIC_URL || process.env.APP_URL;
   if (envUrl && envUrl.trim() !== '') {
     let url = envUrl.trim().replace(/\/+$/, '');
     // If not localhost, use it

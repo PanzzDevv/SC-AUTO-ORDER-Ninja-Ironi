@@ -15,11 +15,16 @@ const { handleSaldo }   = require('./handlers/saldo');
 const { handleBantuan } = require('./handlers/bantuan');
 const { getSession }    = require('./sessions');
 
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+const isPollingDisabled = process.env.DISABLE_BOT_POLLING === 'true' || process.env.VERCEL === '1' || Boolean(process.env.VERCEL);
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: !isPollingDisabled });
 
 const { getBaseUrl } = require('../server/urlHelper');
 
-console.log(`🤖 ${process.env.STORE_NAME || 'PanzzStore'} Bot is running...`);
+if (!isPollingDisabled) {
+  console.log(`🤖 ${process.env.STORE_NAME || 'PanzzStore'} Bot is running (Polling: ON)...`);
+} else {
+  console.log(`🤖 ${process.env.STORE_NAME || 'PanzzStore'} Bot initialized (Polling: OFF - Serverless Mode)...`);
+}
 
 // ─── ADMIN PANEL HELPERS ───────────────────────────────────────────────────────
 async function showAdminPanel(bot, chatId, messageId) {

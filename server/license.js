@@ -10,7 +10,15 @@ const axios = require('axios');
  *   ke database Firebase milik mereka sendiri.
  * - Tidak ada bypass via environment variable (.env) demi keamanan 100%.
  */
+let _licenseCachedAt = 0;
+let _licenseValid = false;
+
 async function verifyLicense() {
+  const now = Date.now();
+  if (_licenseValid && (now - _licenseCachedAt < 3600000)) {
+    return true;
+  }
+
   // PENTING: ID Project Firebase Pusat Anda (Developer) di-hardcode di sini.
   // Jangan ditaruh di .env agar buyer tidak bisa mengubahnya ke project Firebase milik mereka sendiri!
   const centralProjectId = 'panzzdev-license'; 
@@ -72,7 +80,10 @@ async function verifyLicense() {
       process.exit(1);
     }
 
+    _licenseCachedAt = Date.now();
+    _licenseValid = true;
     console.log(`✅ Lisensi valid (Status: ${status}).`);
+    return true;
   } catch (error) {
     console.error('\n==================================================');
     if (error.response && error.response.status === 404) {

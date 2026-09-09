@@ -490,6 +490,16 @@ Silakan klik tombol di bawah ini untuk mendownload file akun Anda secara langsun
       reply_markup: inlineKeyboard
     });
 
+    // Kirim file zip langsung ke chat Telegram pembeli
+    try {
+      await bot.sendDocument(chatId, finalZipPath, {
+        caption: `📦 <b>File Akun:</b> <code>${finalZipName}</code>\n<i>Silakan simpan file akun ini. Terima kasih! 🙏</i>`,
+        parse_mode: 'HTML'
+      });
+    } catch (docErr) {
+      console.error('Direct document send notice:', docErr.message);
+    }
+
     bot.deleteMessage(chatId, waitMsg.message_id).catch(() => {});
 
     await markAccountsSold(accounts.map(a => a.id));
