@@ -14,10 +14,17 @@ const {
 } = require('../firebase');
 const { uploadFileToTelegram } = require('../telegramStorage');
 
-// Ensure temp upload directory exists
-const tempUploadDir = path.join(__dirname, '../../storage/temp-uploads/');
-if (!fs.existsSync(tempUploadDir)) {
-  fs.mkdirSync(tempUploadDir, { recursive: true });
+// Ensure temp upload directory exists (use OS tempdir in serverless/Vercel)
+const tempUploadDir = process.env.VERCEL
+  ? path.join(require('os').tmpdir(), 'temp-uploads')
+  : path.join(__dirname, '../../storage/temp-uploads/');
+
+try {
+  if (!fs.existsSync(tempUploadDir)) {
+    fs.mkdirSync(tempUploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('⚠️ [Upload] Could not create temp upload directory:', err.message);
 }
 
 // Multer for file uploads (temp storage)

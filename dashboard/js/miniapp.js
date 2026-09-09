@@ -30,8 +30,17 @@ async function checkAuth() {
       window._adminToken = data.token;
       initApp();
     } else {
-      const msg = data.message || (data.error ? `Error: ${data.error}` : 'Kamu tidak memiliki izin untuk mengakses panel admin ini.');
-      const detail = data.userId ? `Telegram ID Anda: ${data.userId}` : (data.error ? `Kode error: ${data.error}` : null);
+      let msg = data.message || (data.error ? `Error: ${data.error}` : '');
+      if (!msg) {
+        if (res.status === 500) {
+          msg = 'Server backend Vercel mengalami kendala (HTTP 500 FUNCTION_INVOCATION_FAILED).';
+        } else if (res.status === 403) {
+          msg = 'Akses ditolak: Verifikasi identitas admin gagal.';
+        } else {
+          msg = 'Kamu tidak memiliki izin untuk mengakses panel admin ini.';
+        }
+      }
+      const detail = data.userId ? `Telegram ID Anda: ${data.userId}` : (data.error ? `Kode error: ${data.error}` : `HTTP Status: ${res.status}`);
       showUnauthorized(msg, detail);
     }
   } catch (e) {

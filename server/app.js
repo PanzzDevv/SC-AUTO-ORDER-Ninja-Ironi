@@ -49,9 +49,16 @@ function serveHtmlWithStoreName(filePath, extraReplace = null) {
 app.use('/dashboard', express.static(path.join(__dirname, '../dashboard'), { index: false }));
 
 // Expose public static downloads folder with auto-cleanup task
-const downloadsDir = path.join(__dirname, '../storage/downloads');
-if (!fs.existsSync(downloadsDir)) {
-  fs.mkdirSync(downloadsDir, { recursive: true });
+const downloadsDir = process.env.VERCEL
+  ? path.join(require('os').tmpdir(), 'downloads')
+  : path.join(__dirname, '../storage/downloads');
+
+try {
+  if (!fs.existsSync(downloadsDir)) {
+    fs.mkdirSync(downloadsDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('⚠️ [Storage] Could not create downloads directory:', err.message);
 }
 app.use('/downloads', express.static(downloadsDir));
 
