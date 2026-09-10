@@ -31,26 +31,28 @@ if (!isPollingDisabled) {
 async function showAdminPanel(bot, chatId, messageId) {
   const storeName = process.env.STORE_NAME || 'PanzzStore';
   const baseUrl = getBaseUrl();
-  const isValidHttps = baseUrl.startsWith('https://') && !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1');
-  const miniAppUrl = `${baseUrl}/miniapp`;
-  const adminBtn = isValidHttps
-    ? { text: '🖥️ Buka Mini App Admin', web_app: { url: miniAppUrl } }
-    : { text: '🖥️ Buka Mini App Admin (Setting HTTPS)', callback_data: 'admin_need_https' };
+  const dashboardUrl = `${baseUrl}/`;
 
   const text = `👑 <b>PANEL ADMINISTRATOR</b>\n\n` +
-    `Selamat datang di menu administrator bot <b>${storeName}</b>.\n\n` +
-    `Silakan klik tombol di bawah untuk mengelola bot atau membuka dashboard webapp:`;
+    `Selamat datang di menu administrator <b>${storeName}</b>.\n\n` +
+    `🌐 <b>Web Dashboard Admin (IP/Panel):</b>\n` +
+    `Buka di browser PC / Laptop / HP Anda:\n` +
+    `👉 <code>${dashboardUrl}</code>\n\n` +
+    `🔑 <b>Panduan Akses & Upload:</b>\n` +
+    `• Masukkan <b>ADMIN_SECRET_KEY</b> yang Anda atur di file <code>.env</code>\n` +
+    `• Upload Stok Akun (File Backup xKatrina, TXT, ZIP besar tanpa batas ukuran)\n` +
+    `• Manajemen Stok, Kategori Produk, Riwayat Order, dan Pengaturan Toko\n\n` +
+    `⚡ <b>Aksi Cepat Telegram Bot:</b>`;
 
   const keyboard = {
     inline_keyboard: [
-      [adminBtn],
       [
-        { text: '📦 Upload Stok (Kirim ZIP)', callback_data: 'admin_upload_zip_info' },
-        { text: '📊 Statistik Penjualan', callback_data: 'admin_view_stats' }
+        { text: '📊 Statistik Penjualan', callback_data: 'admin_view_stats' },
+        { text: '📢 Kirim Broadcast', callback_data: 'admin_init_broadcast' }
       ],
       [
-        { text: '📢 Kirim Broadcast', callback_data: 'admin_init_broadcast' },
-        { text: '👤 Kelola Saldo User', callback_data: 'admin_search_user_init' }
+        { text: '👤 Kelola Saldo User', callback_data: 'admin_search_user_init' },
+        { text: '🔄 Refresh Panel', callback_data: 'admin_cancel_input' }
       ]
     ]
   };
@@ -667,13 +669,10 @@ bot.on('callback_query', async (query) => {
       // ─── ADMIN MAIN PANEL ACTIONS ─────────────────────────────────────────────
       case data === 'admin_need_https': {
         const baseUrl = getBaseUrl();
-        const text = `⚠️ <b>Fitur Mini App Membutuhkan URL HTTPS Public!</b>\n\n` +
-          `Saat ini bot berjalan pada Base URL: <code>${escapeHTML(baseUrl)}</code>\n\n` +
-          `Telegram mewajibkan tombol Mini App menggunakan domain HTTPS public (bukan localhost).\n\n` +
-          `💡 <b>Cara Mengatasi:</b>\n` +
-          `1. <b>Testing Lokal:</b> Jalankan Ngrok (contoh: <code>ngrok http 8080</code>), lalu isi variabel di file <code>.env</code>:\n` +
-          `   <code>SERVER_URL=https://xxxx.ngrok-free.app</code>\n\n` +
-          `2. <b>Production Hosting:</b> Deploy bot ke Railway, Render, atau VPS dengan domain HTTPS.`;
+        const text = `🌐 <b>Web Dashboard Admin</b>\n\n` +
+          `Akses admin dilakukan langsung melalui browser IP/Port Server:\n` +
+          `👉 <code>${escapeHTML(baseUrl)}/</code>\n\n` +
+          `Gunakan <b>ADMIN_SECRET_KEY</b> untuk login di browser PC / HP Anda.`;
         await bot.sendMessage(chatId, text, {
           parse_mode: 'HTML',
           reply_markup: {
@@ -758,6 +757,7 @@ bot.on('callback_query', async (query) => {
         break;
       }
 
+      case data === 'admin_open_panel':
       case data === 'admin_cancel_input': {
         session.waitingForAdminUserMsg = false;
         session.waitingForAddSaldo = false;

@@ -42,18 +42,13 @@ Silakan klik tombol di bawah untuk mulai memesan! 👇`;
 const { getBaseUrl } = require('../../server/urlHelper');
 
 function buildMainKeyboard(chatId) {
-  const isAdmin = String(chatId) === String(process.env.ADMIN_TELEGRAM_ID);
-  const baseUrl = getBaseUrl();
-  const isValidHttps = baseUrl.startsWith('https://') && !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1');
-  const miniAppUrl = `${baseUrl}/miniapp`;
-  const adminBtn = isValidHttps
-    ? { text: '⚙️ Panel Admin', web_app: { url: miniAppUrl } }
-    : { text: '⚙️ Panel Admin (Setting HTTPS)', callback_data: 'admin_need_https' };
+  const adminIds = (process.env.ADMIN_TELEGRAM_ID || '').split(',').map(s => s.trim());
+  const isAdmin = adminIds.includes(String(chatId));
 
   return {
     inline_keyboard: [
       [{ text: '➤ Beli Akun TikTok', callback_data: 'menu_beli' }],
-      ...(isAdmin ? [[adminBtn]] : []),
+      ...(isAdmin ? [[{ text: '⚙️ Panel Administrator', callback_data: 'admin_open_panel' }]] : []),
     ],
   };
 }

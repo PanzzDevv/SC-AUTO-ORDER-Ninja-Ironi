@@ -49,7 +49,8 @@ function getBaseUrl(req = null) {
     // If not localhost, use it
     if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `https://${url}`;
+        const isIpOrPort = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(url) || /:\d+$/.test(url);
+        url = isIpOrPort ? `http://${url}` : `https://${url}`;
       }
       return url;
     }
@@ -82,7 +83,8 @@ function getBaseUrl(req = null) {
   if (envUrl && envUrl.trim() !== '') {
     let url = envUrl.trim().replace(/\/+$/, '');
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `https://${url}`;
+      const isIpOrPort = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(url) || /:\d+$/.test(url);
+      url = isIpOrPort ? `http://${url}` : `https://${url}`;
     }
     return url;
   }
