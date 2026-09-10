@@ -14,6 +14,7 @@ const {
 const { handleSaldo }   = require('./handlers/saldo');
 const { handleBantuan } = require('./handlers/bantuan');
 const { getSession }    = require('./sessions');
+const { handleAdminDocument, handleUploadCallback } = require('./handlers/upload');
 
 const isPollingDisabled = process.env.DISABLE_BOT_POLLING === 'true' || process.env.VERCEL === '1' || Boolean(process.env.VERCEL);
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: !isPollingDisabled });
@@ -44,10 +45,13 @@ async function showAdminPanel(bot, chatId, messageId) {
     inline_keyboard: [
       [adminBtn],
       [
-        { text: '📢 Kirim Broadcast', callback_data: 'admin_init_broadcast' },
+        { text: '📦 Upload Stok (Kirim ZIP)', callback_data: 'admin_upload_zip_info' },
         { text: '📊 Statistik Penjualan', callback_data: 'admin_view_stats' }
       ],
-      [{ text: '👤 Kelola Saldo User', callback_data: 'admin_search_user_init' }]
+      [
+        { text: '📢 Kirim Broadcast', callback_data: 'admin_init_broadcast' },
+        { text: '👤 Kelola Saldo User', callback_data: 'admin_search_user_init' }
+      ]
     ]
   };
 
@@ -529,6 +533,15 @@ bot.on('message', async (msg) => {
   catch (e) { console.error('Text handler error:', e.message); }
 });
 
+// ─── DOCUMENT / FILE UPLOADS (ADMIN STOCK UPLOAD) ───────────────────────────
+bot.on('document', async (msg) => {
+  try {
+    await handleAdminDocument(bot, msg);
+  } catch (err) {
+    console.error('Document handler error:', err.message);
+  }
+});
+
 // ─── CALLBACK QUERIES ─────────────────────────────────────────────────────────
 bot.on('callback_query', async (query) => {
   const { data, message, from } = query;
@@ -548,6 +561,30 @@ bot.on('callback_query', async (query) => {
 
   try {
     switch (true) {
+      case data.startsWith('up_'):
+        await handleUploadCallback(bot, query);
+        break;
+
+      case data === 'admin_upload_zip_info': {
+        const infoText = `📦 <b>UPLOAD STOK VIA FILE ZIP</b>\n\n` +
+          `Anda dapat menambahkan stok akun dengan sangat mudah dan santai langsung melalui chat bot ini!\n\n` +
+          `<b>Cara Penggunaan:</b>\n` +
+          `1. <b>Kirim file .zip</b> langsung ke chat bot ini (drag & drop atau lampirkan berkas).\n` +
+          `2. Anda bisa mengirimkan <b>1 file akun .zip</b>, ATAU <b>1 Master ZIP</b> (berisi puluhan file .zip akun sekaligus).\n` +
+          `3. Bot akan otomatis mendeteksi file dan menampilkan pilihan <b>Kategori</b> & <b>Garansi</b>.\n` +
+          `4. Bot akan mengekstrak akun, memeriksa duplikat, dan mengunggahnya ke Telegram Storage & Firestore.\n\n` +
+          `💡 <i>Silakan langsung kirimkan file .zip akun Anda ke chat bot ini sekarang!</i>`;
+        await bot.editMessageText(infoText, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[{ text: '« Kembali ke Menu Admin', callback_data: 'admin_cancel_input' }]]
+          }
+        });
+        break;
+      }
+
       case data === 'back_menu':
         await handleBackToMenu(bot, chatId, messageId, from.first_name);
         break;
