@@ -719,53 +719,76 @@ function clearFiles() {
 
 async function doUpload() {
   if (!selectedFiles.length) return;
-
-  const formData = new FormData();
-  formData.append('type', selectedType);
-  formData.append('garansi', selectedGaransi);
-  selectedFiles.forEach(f => formData.append('files', f));
-
-  document.getElementById('uploadBtn').disabled = true;
-  setOverlay('Mengupload ke Server', 'Sedang mengirim data, mohon tunggu...', 0);
-
-  let prog = 0;
-  const interval = setInterval(() => {
-    prog = Math.min(prog + 5, 90);
-    setOverlay('Mengupload ke Server', 'Proses upload sedang berjalan...', prog);
-  }, 200);
-
-  try {
-    const res = await fetch('/api/admin/stock/upload', {
-      method: 'POST',
-      headers: {
-        'x-admin-token': window._adminToken || '',
-        'x-tg-init-data': initData || '',
-      },
-      body: formData,
-    });
-    const data = await res.json();
-    clearInterval(interval);
-    setOverlay('Selesai!', 'Menyimpan konfigurasi...', 100);
-
-    if (data.success) {
-      setTimeout(() => {
-        hideOverlay();
-        showToast(`✅ ${data.uploaded} file berhasil diupload!`);
-        document.getElementById('uploadBtn').disabled = false;
-        clearFiles();
-        checkUploadStatus(); // Check sync status immediately after upload
-      }, 700);
-    } else {
-      hideOverlay();
-      showToast('❌ Upload gagal: ' + (data.error || ''));
-      document.getElementById('uploadBtn').disabled = false;
-    }
-  } catch {
-    clearInterval(interval);
-    hideOverlay();
-    showToast('❌ Terjadi kesalahan saat upload.');
-    document.getElementById('uploadBtn').disabled = false;
+  if (!selectedType) {
+    showToast('❌ Silakan pilih tipe akun / kategori terlebih dahulu!');
+    return;
   }
+
+  const total = selectedFiles.length;
+  document.getElementById('uploadBtn').disabled = true;
+  setOverlay('Mengupload Akun', `Menyiapkan ${total} akun...`, 0);
+
+  let successCount = 0;
+  let failCount = 0;
+  const errors = [];
+
+  for (let i = 0; i < total; i++) {
+    const file = selectedFiles[i];
+    const pct = Math.round(((i) / total) * 100);
+    setOverlay('Mengupload Akun', `Mengunggah (${i + 1}/${total}): ${file.name}`, pct);
+
+    const formData = new FormData();
+    formData.append('type', selectedType);
+    formData.append('garansi', selectedGaransi);
+    formData.append('files', file);
+
+    try {
+      const res = await fetch('/api/admin/stock/upload', {
+        method: 'POST',
+        headers: {
+          'x-admin-token': window._adminToken || '',
+          'x-tg-init-data': initData || '',
+        },
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data && data.success) {
+        successCount++;
+      } else {
+        failCount++;
+        let errMsg = data?.error || '';
+        if (!errMsg) {
+          if (res.status === 413) errMsg = 'Ukuran file melebihi batas (Max 4.5MB di Vercel)';
+          else if (res.status === 504) errMsg = 'Timeout dari Vercel (10 detik)';
+          else errMsg = `HTTP ${res.status}`;
+        }
+        errors.push(`${file.name}: ${errMsg}`);
+        console.warn(`[Upload Gagal] ${file.name}:`, errMsg);
+      }
+    } catch (err) {
+      failCount++;
+      errors.push(`${file.name}: ${err.message || 'Koneksi terputus'}`);
+      console.warn(`[Upload Network Error] ${file.name}:`, err);
+    }
+  }
+
+  setOverlay('Selesai!', 'Menyelesaikan proses upload...', 100);
+  setTimeout(() => {
+    hideOverlay();
+    document.getElementById('uploadBtn').disabled = false;
+    clearFiles();
+    checkUploadStatus();
+
+    if (failCount === 0) {
+      showToast(`✅ Berhasil mengupload seluruh ${successCount} akun!`);
+    } else if (successCount > 0) {
+      showToast(`⚠️ ${successCount} sukses, ${failCount} gagal (${errors[0]})`);
+    } else {
+      showToast(`❌ Upload gagal: ${errors[0] || 'Terjadi kesalahan saat upload.'}`);
+    }
+  }, 700);
 }
 
 // ─── CATEGORY & PRICE SETTINGS ───────────────────────────────────────────────

@@ -7,7 +7,9 @@ const TelegramBot = require('node-telegram-bot-api');
 let _storageBot = null;
 function getStorageBot() {
   if (!_storageBot) {
-    _storageBot = new TelegramBot(process.env.BOT_TOKEN);
+    const token = (process.env.BOT_TOKEN || '').trim();
+    if (!token) throw new Error('BOT_TOKEN belum diset di Environment Variables Vercel / .env');
+    _storageBot = new TelegramBot(token, { polling: false });
   }
   return _storageBot;
 }
@@ -19,9 +21,9 @@ function getStorageBot() {
  * @returns {Promise<string>} telegramFileId
  */
 async function uploadFileToTelegram(filePath, fileName, retries = 5) {
-  const channelId = process.env.STORAGE_CHANNEL_ID;
+  const channelId = (process.env.STORAGE_CHANNEL_ID || '').trim();
   if (!channelId) {
-    throw new Error('STORAGE_CHANNEL_ID belum diset di .env');
+    throw new Error('STORAGE_CHANNEL_ID belum diset di Environment Variables Vercel / .env');
   }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
