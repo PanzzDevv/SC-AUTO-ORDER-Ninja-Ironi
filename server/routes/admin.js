@@ -66,14 +66,34 @@ function validateTelegramInitData(initData) {
   }
 }
 
-// ─── LOGIN (web dashboard) ───────────────────────────────────────────────────
+// ─── LOGIN & VERIFY KEY (web dashboard via IP/Port) ───────────────────────────
 router.post('/login', (req, res) => {
-  const { password } = req.body;
-  if (password === process.env.ADMIN_PASSWORD) {
-    res.json({ success: true, token: process.env.ADMIN_SECRET_KEY || 'panzzstore2026' });
+  const { password, key } = req.body;
+  const inputKey = (key || password || '').trim();
+  const adminSecret = (process.env.ADMIN_SECRET_KEY || '').trim();
+  const adminPass = (process.env.ADMIN_PASSWORD || '').trim();
+
+  if ((adminSecret && inputKey === adminSecret) || (adminPass && inputKey === adminPass)) {
+    res.json({ success: true, token: adminSecret || adminPass });
   } else {
-    res.status(401).json({ error: 'Password salah' });
+    res.status(401).json({ error: 'Password atau Admin Secret Key salah.' });
   }
+});
+
+router.post('/verify-key', (req, res) => {
+  const { key } = req.body;
+  const inputKey = (key || '').trim();
+  const adminSecret = (process.env.ADMIN_SECRET_KEY || '').trim();
+  const adminPass = (process.env.ADMIN_PASSWORD || '').trim();
+
+  if (!inputKey) {
+    return res.status(400).json({ success: false, error: 'Kunci rahasia diperlukan.' });
+  }
+
+  if ((adminSecret && inputKey === adminSecret) || (adminPass && inputKey === adminPass)) {
+    return res.json({ success: true, token: adminSecret || adminPass });
+  }
+  return res.status(401).json({ success: false, error: 'Admin Secret Key salah.' });
 });
 
 // ─── MINIAPP AUTH (validate Telegram initData) ────────────────────────────────

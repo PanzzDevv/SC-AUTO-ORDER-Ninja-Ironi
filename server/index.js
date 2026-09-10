@@ -29,10 +29,10 @@ const { verifyLicense } = require('./license');
   const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 
   if (!isBotOnly) {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       const currentBaseUrl = getBaseUrl();
       console.log(`🚀 ${process.env.STORE_NAME || 'PanzzStore'} Server running on ${currentBaseUrl} (Port: ${PORT})`);
-      console.log(`📊 Dashboard: ${currentBaseUrl}/dashboard`);
+      console.log(`📊 Dashboard: ${currentBaseUrl}/miniapp (atau buka http://<IP-SERVER>:${PORT})`);
       console.log(`🔗 Webhook URL: ${currentBaseUrl}/webhook/panzzpay`);
     });
   } else {

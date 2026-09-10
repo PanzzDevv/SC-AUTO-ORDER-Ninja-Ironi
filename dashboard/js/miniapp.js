@@ -1,63 +1,198 @@
-// ─── TELEGRAM WEBAPP INIT ─────────────────────────────────────────────────────
-const tg = window.Telegram.WebApp;
-tg.ready();
-tg.expand();
+// ─── TELEGRAM WEBAPP & BROWSER INIT ──────────────────────────────────────────
+const tg = window.Telegram?.WebApp || {};
+try {
+  if (tg.ready) tg.ready();
+  if (tg.expand) tg.expand();
+  if (tg.setHeaderColor) tg.setHeaderColor('#A855F7');
+  if (tg.setBackgroundColor) tg.setBackgroundColor('#F8F7FF');
+} catch (_) {}
 
-// Set header color to match theme
-tg.setHeaderColor('#A855F7');
-tg.setBackgroundColor('#F8F7FF');
+// Polyfill untuk dialog jika dibuka langsung di browser PC/HP (Akses IP/Port Pterodactyl)
+if (!tg.showConfirm) {
+  tg.showConfirm = (msg, cb) => {
+    const ok = window.confirm(msg);
+    if (cb) cb(ok);
+  };
+}
+if (!tg.showAlert) {
+  tg.showAlert = (msg, cb) => {
+    window.alert(msg);
+    if (cb) cb();
+  };
+}
+if (!tg.BackButton) {
+  tg.BackButton = { show: () => {}, hide: () => {}, onClick: () => {} };
+}
 
 const ADMIN_IDS = (window.__ADMIN_IDS__ || '').split(',').map(s => s.trim());
-const initData = tg.initData;
+const initData = tg.initData || '';
 const user = tg.initDataUnsafe?.user;
 
 // ─── AUTH CHECK ───────────────────────────────────────────────────────────────
 async function checkAuth() {
-  if (!user) {
-    showUnauthorized('Buka Mini App ini melalui tombol di Telegram agar identitas akun Anda terbaca.');
+  // 1. Cek apakah ada saved token di browser ini (dari login via IP:Port sebelumnya)
+  const savedToken = localStorage.getItem('panzz_admin_token');
+  if (savedToken) {
+    window._adminToken = savedToken;
+    try {
+      const testRes = await apiFetch('/api/admin/stats');
+      if (testRes.ok) {
+        initApp();
+        return;
+      } else {
+        localStorage.removeItem('panzz_admin_token');
+      }
+    } catch (_) {
+      // Jika network/server belum siap, tetap coba init dengan token tersimpan
+      initApp();
+      return;
+    }
+  }
+
+  // 2. Jika dibuka di dalam Telegram Mini App
+  if (user && initData) {
+    try {
+      const res = await apiFetch('/api/admin/miniapp-auth', {
+        method: 'POST',
+        body: JSON.stringify({ initData }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        window._adminToken = data.token;
+        localStorage.setItem('panzz_admin_token', data.token);
+        initApp();
+        return;
+      } else {
+        let msg = data.message || (data.error ? `Error: ${data.error}` : '');
+        showWebLoginScreen(msg || 'Verifikasi Telegram tidak berhasil. Masuk menggunakan Admin Secret Key:');
+        return;
+      }
+    } catch (e) {
+      console.warn('Auth server error:', e);
+      if (ADMIN_IDS.includes(String(user.id))) {
+        window._adminToken = 'dev-token';
+        initApp();
+        return;
+      }
+    }
+  }
+
+  // 3. Jika dibuka langsung di browser PC/HP (melalui IP/Port Panel Pterodactyl)
+  showWebLoginScreen();
+}
+
+function showWebLoginScreen(customMsg = null) {
+  document.getElementById('loadingScreen').style.display = 'none';
+  const unauth = document.getElementById('unauthorizedScreen');
+  if (unauth) unauth.style.display = 'none';
+  const mainApp = document.getElementById('mainApp');
+  if (mainApp) mainApp.style.display = 'none';
+
+  const loginScreen = document.getElementById('webLoginScreen');
+  if (loginScreen) {
+    loginScreen.style.display = 'flex';
+    if (customMsg) {
+      const sub = loginScreen.querySelector('.web-login-sub');
+      if (sub) sub.textContent = customMsg;
+    }
+    setTimeout(() => {
+      const input = document.getElementById('webLoginKey');
+      if (input) input.focus();
+    }, 150);
+  } else {
+    showUnauthorized('Form login web tidak ditemukan.');
+  }
+}
+
+async function handleWebLogin(event) {
+  if (event) event.preventDefault();
+  const keyInput = document.getElementById('webLoginKey');
+  const errorDiv = document.getElementById('webLoginError');
+  const submitBtn = document.getElementById('webLoginBtn');
+
+  if (!keyInput || !keyInput.value.trim()) {
+    if (errorDiv) {
+      errorDiv.style.display = 'block';
+      errorDiv.textContent = 'Silakan masukkan Admin Secret Key.';
+    }
     return;
   }
 
-  try {
-    const res = await apiFetch('/api/admin/miniapp-auth', {
-      method: 'POST',
-      body: JSON.stringify({ initData }),
-    });
+  const key = keyInput.value.trim();
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Memverifikasi...';
+  }
+  if (errorDiv) errorDiv.style.display = 'none';
 
+  try {
+    const res = await apiFetch('/api/admin/verify-key', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    });
     const data = await res.json().catch(() => ({}));
 
     if (res.ok && data.success) {
-      window._adminToken = data.token;
+      window._adminToken = data.token || key;
+      localStorage.setItem('panzz_admin_token', window._adminToken);
+      const loginScreen = document.getElementById('webLoginScreen');
+      if (loginScreen) loginScreen.style.display = 'none';
       initApp();
     } else {
-      let msg = data.message || (data.error ? `Error: ${data.error}` : '');
-      if (!msg) {
-        if (res.status === 500) {
-          msg = 'Server backend Vercel mengalami kendala (HTTP 500 FUNCTION_INVOCATION_FAILED).';
-        } else if (res.status === 403) {
-          msg = 'Akses ditolak: Verifikasi identitas admin gagal.';
-        } else {
-          msg = 'Kamu tidak memiliki izin untuk mengakses panel admin ini.';
-        }
+      if (errorDiv) {
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = data.error || 'Admin Secret Key salah. Cek ADMIN_SECRET_KEY di .env!';
       }
-      const detail = data.userId ? `Telegram ID Anda: ${data.userId}` : (data.error ? `Kode error: ${data.error}` : `HTTP Status: ${res.status}`);
-      showUnauthorized(msg, detail);
     }
-  } catch (e) {
-    console.warn('Auth server error:', e);
-    if (ADMIN_IDS.includes(String(user.id))) {
-      window._adminToken = 'dev-token';
-      initApp();
-    } else {
-      showUnauthorized('Gagal menghubungi server autentikasi Vercel.', e.message);
+  } catch (err) {
+    // Fallback: tes langsung ke endpoint /api/admin/stats
+    try {
+      window._adminToken = key;
+      const testRes = await apiFetch('/api/admin/stats');
+      if (testRes.ok) {
+        localStorage.setItem('panzz_admin_token', key);
+        const loginScreen = document.getElementById('webLoginScreen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        initApp();
+        return;
+      }
+    } catch (_) {}
+
+    if (errorDiv) {
+      errorDiv.style.display = 'block';
+      errorDiv.textContent = 'Gagal menghubungi server: ' + err.message;
     }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🚀 Masuk ke Dashboard';
+    }
+  }
+}
+
+function togglePasswordVisibility() {
+  const input = document.getElementById('webLoginKey');
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+}
+
+function handleLogout() {
+  if (confirm('Apakah Anda yakin ingin keluar dari dashboard admin di browser ini?')) {
+    localStorage.removeItem('panzz_admin_token');
+    window._adminToken = null;
+    window.location.reload();
   }
 }
 
 function showUnauthorized(customMsg = null, detail = null) {
   document.getElementById('loadingScreen').style.display = 'none';
+  const loginScreen = document.getElementById('webLoginScreen');
+  if (loginScreen) loginScreen.style.display = 'none';
   const unauth = document.getElementById('unauthorizedScreen');
-  unauth.style.display = 'flex';
+  if (unauth) unauth.style.display = 'flex';
   if (customMsg) {
     const p = unauth.querySelector('p');
     if (p) p.textContent = customMsg;
@@ -135,7 +270,19 @@ async function fetchPricesGlobally() {
 
 async function initApp() {
   document.getElementById('loadingScreen').style.display = 'none';
+  const loginScreen = document.getElementById('webLoginScreen');
+  if (loginScreen) loginScreen.style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
+
+  // Tampilkan tombol logout jika diakses lewat browser (bukan Telegram WebApp)
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    if (!user || !initData) {
+      logoutBtn.style.display = 'inline-flex';
+    } else {
+      logoutBtn.style.display = 'none';
+    }
+  }
 
   // Greet
   const name = user?.first_name || 'Admin';

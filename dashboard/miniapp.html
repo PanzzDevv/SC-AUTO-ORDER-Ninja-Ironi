@@ -25,6 +25,27 @@
     <p>Kamu tidak memiliki izin untuk mengakses panel admin ini.</p>
   </div>
 
+  <!-- WEB LOGIN SCREEN (Akses langsung via IP/Port Browser) -->
+  <div id="webLoginScreen" style="display:none; position:fixed; inset:0; background:#0f172a; z-index:99999; align-items:center; justify-content:center; padding:1.25rem;">
+    <div style="background:#1e293b; border:1px solid rgba(255,255,255,0.1); border-radius:20px; max-width:380px; width:100%; padding:2rem 1.5rem; text-align:center; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
+      <div style="font-size:2.75rem; margin-bottom:0.75rem;">🏪</div>
+      <h2 style="font-size:1.35rem; font-weight:800; color:#fff; margin:0 0 0.25rem 0;">PanzzStore Admin</h2>
+      <p class="web-login-sub" style="font-size:0.85rem; color:#94a3b8; margin:0 0 1.5rem 0;">Akses langsung via IP/Port Panel Pterodactyl</p>
+      
+      <form id="webLoginForm" onsubmit="handleWebLogin(event)">
+        <div style="margin-bottom:1.25rem; text-align:left;">
+          <label style="display:block; font-size:0.8rem; font-weight:600; color:#cbd5e1; margin-bottom:0.4rem;">Admin Secret Key</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="webLoginKey" placeholder="Masukkan ADMIN_SECRET_KEY..." style="width:100%; padding:0.85rem 1rem; padding-right:2.75rem; border-radius:12px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#fff; font-size:0.95rem; outline:none; box-sizing:border-box;" required />
+            <span onclick="togglePasswordVisibility()" style="position:absolute; right:0.85rem; cursor:pointer; font-size:1.1rem; user-select:none;">👁️</span>
+          </div>
+        </div>
+        <div id="webLoginError" style="display:none; color:#f87171; font-size:0.85rem; margin-bottom:1rem; padding:0.6rem 0.8rem; background:rgba(239,68,68,0.12); border-radius:8px; border:1px solid rgba(239,68,68,0.25); text-align:left;"></div>
+        <button type="submit" id="webLoginBtn" class="btn-primary full" style="padding:0.85rem; font-size:0.95rem; font-weight:700; width:100%;">🚀 Masuk ke Dashboard</button>
+      </form>
+    </div>
+  </div>
+
   <!-- MAIN APP -->
   <div id="mainApp" style="display:none;">
 
@@ -67,7 +88,10 @@
             <h1 class="page-title">Dashboard</h1>
             <p class="page-sub" id="greetText">Selamat datang!</p>
           </div>
-          <button class="refresh-btn" onclick="loadHome()">🔄</button>
+          <div style="display:flex; gap:0.5rem;">
+            <button class="refresh-btn" onclick="loadHome()" title="Refresh">🔄</button>
+            <button class="refresh-btn" id="logoutBtn" onclick="handleLogout()" title="Keluar / Ganti Key" style="display:none; background:rgba(239,68,68,0.2); border-color:rgba(239,68,68,0.4); color:#fca5a5;">🚪</button>
+          </div>
         </div>
 
         <!-- Stats -->
@@ -506,6 +530,6 @@
     </div>
   </div>
 
-  <script src="/dashboard/js/miniapp.js?v=3"></script>
+  <script src="/dashboard/js/miniapp.js?v=4"></script>
 </body>
 </html>
